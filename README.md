@@ -1,0 +1,70 @@
+# Parkly
+
+A mobile-first Hyderabad parking prototype: individual parking discovery and reservations, plus organizer-funded event inventory and guest invites. Inspired by JustPark's destination/time search and reservation patterns, with visual tokens and components adapted from CampusLens PRISM.
+
+## Run locally
+
+Requires Node.js 20.20+ and npm. SQLite is embedded; no database service or API key is needed.
+
+```sh
+npm ci
+npm run dev
+```
+
+Open http://localhost:5173. The API runs on 127.0.0.1:3001. To serve the compiled application:
+
+```sh
+npm run build
+npm start
+```
+
+Open http://localhost:3001. Both servers bind to localhost by default. Phone access requires an explicitly configured network deployment or secure tunnel; localhost on a phone points to the phone itself.
+
+```sh
+npm test
+```
+
+## Implemented
+
+- Destination search across Hyderabad fixtures; time windows; vehicle, covered, EV and price filters; sorting; saved spaces.
+- OpenStreetMap map and selectable price pins, plus a mobile list/map switch.
+- Parking details, access instructions, hourly totals, reservation, QR reference pass, navigation handoff, and cancellation.
+- SQLite-backed transactional capacity accounting. Event allocations consume shared inventory before guests claim passes.
+- Organizer events with bulk capacity reservations, invite URLs, compatible guest claims, duplicate-claim protection, and capacity tracking.
+- Owner listing form with entrance coordinates, vehicle restrictions, capacity and price; owner arrivals and authorized online check-in.
+- Browser-local MobileViT scene classification with an optional model download. Images are not uploaded to the backend or saved to listings.
+- Keyboard focus trap, labels, reduced-motion support, responsive layouts, empty/error/loading states.
+
+## Honest boundaries
+
+This is a working local prototype, not a production marketplace or full JustPark feature parity. All seeded spaces and prices are fictional demonstration inventory. Reservations convey no actual parking right; no payments are taken.
+
+Identity is a random browser-local bearer session, not verified login. Keep the prototype local until real authentication, account recovery, abuse protection, authorization review and deployment hardening are implemented. Anyone with a session token can act as that session. Event links are bearer invitations; anyone with the link can attempt to claim a pass.
+
+Listings currently have continuous availability. Owner schedule editing, verification, reviews, pricing plans, payments, payouts, refunds, notifications, QR camera scanning, location search/geocoding and production mapping contracts remain future work. The attendant enters a QR's booking reference manually; verification requires connectivity. Screenshot passes are useful offline, but are not signed offline credentials.
+
+Monthly selects a 30-day window at the hourly rate; there is no monthly discount product. Airport search selects the Shamshabad demo area and does not include airport access or shuttles.
+
+Event locations are allocated in the organizer's selected order, not calculated walking distance. A parking location has fungible capacity rather than individually numbered bays. No automatic release of no-shows or event cancellation UI is implemented.
+
+The optional AI is `Xenova/mobilevit-xx-small` via Transformers.js, executing on CPU/WASM in the browser. Initial model/WASM downloads need connectivity. It supplies general ImageNet scene labels, not calibrated measurements, obstacle guarantees, parking suitability, or NPU acceleration. This exploratory AI feature is not yet strong enough to claim a parking-specific model at the product's core.
+
+## Architecture
+
+`src/main.tsx`: React entry. `src/App.tsx`: application and flows. `src/style.css`: PRISM-derived theme and responsive components. `server/store.js`: SQLite schema, fixtures, transactional inventory. `server/index.js`: Express API and static serving. `tests/reservations.test.js`: capacity, rollback, compatibility and cancellation invariants.
+
+SQLite data persists in `data/parkly.sqlite` and is ignored by Git. Browser session and saved-space preferences use local storage. Dates are sent as ISO instants and shown in browser local time; use Asia/Kolkata for the Hyderabad demo.
+
+## References and attribution
+
+- Functional research: https://www.justpark.com/
+- Visual reference: https://campuslens-tan.vercel.app/design-system
+- AI model: https://huggingface.co/Xenova/mobilevit-xx-small
+- Maps: https://www.openstreetmap.org/copyright
+- Icons: Lucide (ISC). Fonts: Geist, Geist Mono and Instrument Serif via Google Fonts (SIL OFL).
+
+No JustPark source code, brand assets, reviews or space inventory were copied. Parking-card artwork is a neutral type icon, not a photograph of a real listing.
+
+## Hackathon preparation
+
+The supplied iQOO rules require submission code to be written during the event window. This repository was prepared before that window: treat it as a reference prototype, not an eligible event submission without explicit organizer guidance. See `docs/product-brief.md` for the scope and next steps.
