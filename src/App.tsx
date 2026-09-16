@@ -1465,23 +1465,6 @@ export default function App() {
                 <X size={20} />
               </button>
             </div>
-            <div className="date-shortcuts">
-              {[0, 1, 3].map((days) => {
-                const option = localDate(
-                  new Date(Date.now() + days * 86400000),
-                ).slice(0, 10);
-                return (
-                  <button
-                    type="button"
-                    key={days}
-                    className={draftDate === option ? "selected" : ""}
-                    onClick={() => setDraftDate(option)}
-                  >
-                    {days === 0 ? "Today" : days === 1 ? "Tomorrow" : "+3 days"}
-                  </button>
-                );
-              })}
-            </div>
             <div className="schedule-inputs">
               <label>
                 <span>Date</span>
@@ -1505,23 +1488,6 @@ export default function App() {
                   onChange={(e) => setDraftTime(e.target.value)}
                 />
               </label>
-            </div>
-            <div className="time-shortcuts">
-              {[
-                ["Morning", "09:00"],
-                ["Afternoon", "13:00"],
-                ["Evening", "18:00"],
-              ].map(([label, value]) => (
-                <button
-                  type="button"
-                  key={value}
-                  className={draftTime === value ? "selected" : ""}
-                  onClick={() => setDraftTime(value)}
-                >
-                  <span>{label}</span>
-                  <small>{value}</small>
-                </button>
-              ))}
             </div>
             {error && <p className="schedule-error">{error}</p>}
             <div className="schedule-confirm">
