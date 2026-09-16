@@ -11,7 +11,11 @@ app.use(express.json({ limit: "50kb" }));
 app.use("/api", (req, res, next) => {
   res.set("Cache-Control", "no-store");
   const origin = req.get("Origin");
-  if (origin === "http://localhost" || origin === "capacitor://localhost") {
+  if (
+    origin === "http://localhost" ||
+    origin?.startsWith("http://127.0.0.1:") ||
+    origin === "capacitor://localhost"
+  ) {
     res.set("Access-Control-Allow-Origin", origin);
     res.set("Vary", "Origin");
     res.set("Access-Control-Allow-Headers", "Content-Type, X-Session");

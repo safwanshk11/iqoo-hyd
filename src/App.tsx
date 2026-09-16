@@ -89,9 +89,7 @@ if (!session) {
   localStorage.setItem("parkly-session", session);
 }
 async function api(path: string, body?: unknown) {
-  const apiRoot = Capacitor.isNativePlatform()
-    ? "http://127.0.0.1:3001/api"
-    : "/api";
+  const apiRoot = "https://parkly-api-pslb.onrender.com/api";
   const r = await fetch(apiRoot + path, {
     method: body ? "POST" : "GET",
     headers: { "Content-Type": "application/json", "X-Session": session! },
