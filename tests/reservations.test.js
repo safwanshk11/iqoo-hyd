@@ -67,6 +67,26 @@ test("cancelled individual reservations release capacity", () => {
   assert.equal(s.available("s1", start, end), 6);
   s.db.close();
 });
+test("stays over ten days use the monthly rate", () => {
+  const s = createStore();
+  const tenDays = s.book({
+    ...request,
+    start: "2027-01-01T10:00:00.000Z",
+    end: "2027-01-11T10:00:00.000Z",
+    session: "ten-days",
+    plate: "TS09TEN123",
+  });
+  const monthly = s.book({
+    ...request,
+    start: "2027-01-01T10:00:00.000Z",
+    end: "2027-01-12T10:00:00.000Z",
+    session: "monthly",
+    plate: "TS09MON123",
+  });
+  assert.equal(tenDays.total, 40 * 24 * 10);
+  assert.equal(monthly.total, 40 * 24 * 30);
+  s.db.close();
+});
 test("incompatible vehicles rejected and event allocator skips incompatible locations", () => {
   const s = createStore();
   assert.throws(() => s.book({ ...request, spaceId: "s3" }), /does not fit/);

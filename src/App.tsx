@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   ArrowRight,
   Car,
+  Camera,
   CalendarDays,
   Bookmark,
   Ticket,
@@ -32,6 +33,7 @@ import {
   Map as MapIcon,
   List,
   LogOut,
+  ScanLine,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Capacitor } from "@capacitor/core";
@@ -95,7 +97,15 @@ async function api(path: string, body?: unknown) {
     headers: { "Content-Type": "application/json", "X-Session": session! },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await r.json();
+  const responseText = await r.text();
+  let data: any = {};
+  if (responseText) {
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      throw Error("The server returned an invalid response. Please try again.");
+    }
+  }
   if (!r.ok)
     throw Error(data.error || "Something went wrong. Please try again.");
   return data;
@@ -113,6 +123,26 @@ const money = (n: number) =>
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(n);
+const priceForStay = (price: number, start: string, end: string) => {
+  const hours = Math.max(
+    1,
+    Math.ceil((+new Date(end) - +new Date(start)) / 3600000),
+  );
+  if (hours <= 24 * 10)
+    return {
+      total: hours * price,
+      rate: price,
+      unit: "/ hour",
+      label: `${hours} hours`,
+    };
+  const months = Math.ceil(hours / (24 * 30));
+  return {
+    total: months * price * 24 * 30,
+    rate: price * 24 * 30,
+    unit: "/ month",
+    label: `${months} month${months === 1 ? "" : "s"}`,
+  };
+};
 const dateLabel = (s: string) =>
   new Date(s).toLocaleString("en-IN", {
     day: "numeric",
@@ -160,15 +190,34 @@ function Recenter({
   }, [center[0], center[1], visible]);
   return null;
 }
+function RecenterOnLocation({
+  location,
+}: {
+  location: [number, number] | null;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    if (location) map.setView(location, 15, { animate: true });
+  }, [location, map]);
+  return null;
+}
 export default function App() {
+  const scanVideoRef = React.useRef<HTMLVideoElement>(null);
+  const [onboarding, setOnboarding] = useState(
+    () =>
+      !new URLSearchParams(location.search).get("invite"),
+  );
+  const [onboardingStep, setOnboardingStep] = useState(0),
+    [onboardingDirection, setOnboardingDirection] = useState<"next" | "back">(
+      "next",
+    );
   const [page, setPage] = useState("discover"),
     [menu, setMenu] = useState(false),
     [query, setQuery] = useState("Jubilee Hills"),
     [search, setSearch] = useState("Jubilee Hills"),
     [start, setStart] = useState(localDate(initialStart)),
     [end, setEnd] = useState(localDate(new Date(+initialStart + 3 * 3600000))),
-    [vehicle, setVehicle] = useState("Sedan"),
-    [mode, setMode] = useState("Hourly / daily");
+    [vehicle, setVehicle] = useState("Sedan");
   const [spaces, setSpaces] = useState<Space[]>([]),
     [bookings, setBookings] = useState<Booking[]>([]),
     [events, setEvents] = useState<Event[]>([]),
@@ -187,14 +236,20 @@ export default function App() {
     [error, setError] = useState(""),
     [toast, setToast] = useState(""),
     [loading, setLoading] = useState(true),
-    [filter, setFilter] = useState("All spaces"),
     [sort, setSort] = useState("Recommended"),
     [sortOpen, setSortOpen] = useState(false),
     [mobileMap, setMobileMap] = useState(false),
+    [userLocation, setUserLocation] = useState<[number, number] | null>(null),
+    [locating, setLocating] = useState(false),
     [mapFocus, setMapFocus] = useState<Space | null>(null),
     [scheduleField, setScheduleField] = useState<"start" | "end" | null>(null),
     [draftDate, setDraftDate] = useState(""),
     [draftTime, setDraftTime] = useState(""),
+    [requirements, setRequirements] = useState({
+      covered: false,
+      ev: false,
+      budget: false,
+    }),
     [invite, setInvite] = useState<Event | null>(null),
     [checkId, setCheckId] = useState("");
   const [newEvent, setNewEvent] = useState({
@@ -219,7 +274,9 @@ export default function App() {
   const [aiStatus, setAiStatus] = useState(""),
     [aiBusy, setAiBusy] = useState(false),
     [aiReady, setAiReady] = useState(false),
-    [preview, setPreview] = useState("");
+    [preview, setPreview] = useState(""),
+    [scanOpen, setScanOpen] = useState(false),
+    [scanError, setScanError] = useState("");
   function navigate(p: string) {
     setPage(p);
     setMenu(false);
@@ -227,6 +284,38 @@ export default function App() {
     setError("");
     window.scrollTo({ top: 0, behavior: "auto" });
     requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+  }
+  function locateUser() {
+    if (!navigator.geolocation) {
+      setError("Location is not available in this browser.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setUserLocation([coords.latitude, coords.longitude]);
+        setLocating(false);
+      },
+      () => {
+        setLocating(false);
+        setError("Location access was blocked. You can still browse the map.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+    );
+  }
+  function finishOnboarding() {
+    setOnboarding(false);
+  }
+  function moveOnboarding(direction: "next" | "back") {
+    setOnboardingDirection(direction);
+    setOnboardingStep((step) => {
+      const next = step + (direction === "next" ? 1 : -1);
+      if (next >= 3) {
+        finishOnboarding();
+        return step;
+      }
+      return Math.max(0, next);
+    });
   }
   function openSchedule(field: "start" | "end") {
     const [date, time] = (field === "start" ? start : end).split("T");
@@ -304,7 +393,13 @@ export default function App() {
     }
   }, [toast]);
   useEffect(() => {
-    document.body.style.overflow = modal || scheduleField ? "hidden" : "";
+    if (!error || modal || scheduleField) return;
+    const t = setTimeout(() => setError(""), 5200);
+    return () => clearTimeout(t);
+  }, [error, modal, scheduleField]);
+  useEffect(() => {
+    document.body.style.overflow =
+      onboarding || modal || scheduleField ? "hidden" : "";
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         close();
@@ -329,12 +424,79 @@ export default function App() {
     };
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
-  }, [modal, scheduleField]);
+  }, [modal, onboarding, scheduleField]);
+  useEffect(() => {
+    if (!scanOpen) return;
+    let stream: MediaStream | null = null;
+    let stopped = false;
+    let frame = 0;
+    const scan = async () => {
+      const Detector = (window as any).BarcodeDetector;
+      if (!Detector) {
+        setScanError("QR scanning is not supported here. Use the manual field below.");
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false,
+        });
+        if (!scanVideoRef.current) return;
+        scanVideoRef.current.srcObject = stream;
+        await scanVideoRef.current.play();
+        const detector = new Detector({ formats: ["qr_code"] });
+        const read = async () => {
+          if (stopped || !scanVideoRef.current) return;
+          try {
+            const codes = await detector.detect(scanVideoRef.current);
+            const value = codes[0]?.rawValue;
+            if (value) {
+              let id = value;
+              try {
+                const payload = JSON.parse(value);
+                if (payload.type === "parkly-pass") id = payload.id;
+              } catch {
+                // Accept a plain booking reference as a scanner fallback.
+              }
+              if (id) {
+                setCheckId(id);
+                setScanOpen(false);
+                setToast("Pass scanned. Ready to verify.");
+                return;
+              }
+            }
+          } catch {
+            setScanError("Keep the QR code inside the frame and try again.");
+          }
+          frame = window.setTimeout(read, 160);
+        };
+        read();
+      } catch {
+        setScanError("Camera access was blocked. Allow camera access or use the manual field below.");
+      }
+    };
+    scan();
+    return () => {
+      stopped = true;
+      window.clearTimeout(frame);
+      stream?.getTracks().forEach((track) => track.stop());
+      if (scanVideoRef.current) scanVideoRef.current.srcObject = null;
+    };
+  }, [scanOpen]);
   function close() {
     setModal("");
     setSelected(null);
     setPass(null);
     setError("");
+  }
+  async function checkIn() {
+    if (!checkId) return;
+    await action(async () => {
+      const r = await api("/checkin", { id: checkId });
+      setToast(`Checked in ${r.plate}`);
+      setCheckId("");
+      refresh();
+    });
   }
   function save(id: string) {
     const a = saved.includes(id)
@@ -498,9 +660,9 @@ export default function App() {
         !needle ||
         `${s.name} ${s.area} ${s.address}`.toLowerCase().includes(needle)) &&
       vehicleTypes.indexOf(vehicle) <= vehicleTypes.indexOf(s.vehicle) &&
-      (filter !== "Covered" || s.covered) &&
-      (filter !== "EV charging" || s.ev) &&
-      (filter !== "Under ₹40/hr" || s.price < 40),
+      (!requirements.covered || s.covered) &&
+      (!requirements.ev || s.ev) &&
+      (!requirements.budget || s.price < 40),
   );
   filtered = [...filtered].sort((a, b) =>
     sort === "Price: low to high"
@@ -510,10 +672,7 @@ export default function App() {
         : 0,
   );
   const center: [number, number] = areaCenters[search] || [17.433, 78.407];
-  const duration = Math.max(
-    1,
-    Math.ceil((+new Date(end) - +new Date(start)) / 3600000),
-  );
+  const pricing = (price: number) => priceForStay(price, start, end);
   const field = (label: string, el: React.ReactNode) => (
     <label className="field">
       <span>{label}</span>
@@ -525,7 +684,12 @@ export default function App() {
       <a className="skip" href="#main">
         Skip to content
       </a>
-      <header className="nav-shell">
+      <header
+        className={
+          "nav-shell " +
+          (page === "discover" && mobileMap ? "nav-map-hidden" : "")
+        }
+      >
         <div className="nav glass">
           <button className="brand" onClick={() => navigate("discover")}>
             Park<span className="serif">ly</span>
@@ -577,12 +741,6 @@ export default function App() {
         id="main"
         className={page === "discover" && mobileMap ? "map-active" : ""}
       >
-        <div className="demo-bar">
-          <span className="demo-dot" /> Hyderabad preview{" "}
-          <span className="demo-note">
-            · Demo spaces. No real payments or parking rights.
-          </span>
-        </div>
         {(page === "discover" || page === "saved") && (
           <>
             <section className="page-intro">
@@ -622,46 +780,6 @@ export default function App() {
             </section>
             {page === "discover" && (
               <section className="search-island glass">
-                <div className="search-top">
-                  <div className="segmented">
-                    {["Hourly / daily", "Monthly", "Airport"].map((m) => (
-                      <button
-                        key={m}
-                        className={mode === m ? "selected" : ""}
-                        onClick={() => {
-                          setMode(m);
-                          if (m === "Monthly") {
-                            setEnd(
-                              localDate(
-                                new Date(+new Date(start) + 30 * 86400000),
-                              ),
-                            );
-                          }
-                          if (m === "Hourly / daily") {
-                            setEnd(
-                              localDate(
-                                new Date(+new Date(start) + 3 * 3600000),
-                              ),
-                            );
-                          }
-                          if (m === "Airport") {
-                            setQuery("Shamshabad");
-                            setEnd(
-                              localDate(
-                                new Date(+new Date(start) + 3 * 3600000),
-                              ),
-                            );
-                          }
-                        }}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                  <span className="quiet">
-                    <ShieldCheck size={14} /> Reserve before you arrive
-                  </span>
-                </div>
                 <form
                   className="search-fields"
                   onSubmit={(e) => {
@@ -678,16 +796,10 @@ export default function App() {
                         aria-label="Destination"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        list="areas"
                         placeholder="Place, neighbourhood or venue"
                       />
                     </span>
                   </label>
-                  <datalist id="areas">
-                    {Object.keys(areaCenters).map((a) => (
-                      <option key={a}>{a}</option>
-                    ))}
-                  </datalist>
                   <button
                     type="button"
                     className="schedule-trigger"
@@ -720,45 +832,9 @@ export default function App() {
                     <ArrowRight size={18} />
                   </button>
                 </form>
-                {mode === "Monthly" && (
-                  <p className="mode-note">
-                    30-day parking, calculated at each space’s hourly rate.
-                    Monthly discounts are not available in this preview.
-                  </p>
-                )}
               </section>
             )}
             <div className="results-top">
-              <div className="filter-row">
-                {["All spaces", "Covered", "EV charging", "Under ₹40/hr"].map(
-                  (f) => (
-                    <button
-                      className={"chip " + (filter === f ? "on" : "")}
-                      key={f}
-                      onClick={() => setFilter(f)}
-                    >
-                      {f === "Covered" ? (
-                        <House size={15} />
-                      ) : f === "EV charging" ? (
-                        <Zap size={15} />
-                      ) : null}
-                      {f}
-                    </button>
-                  ),
-                )}
-                <label className="chip vehicle-chip">
-                  <Car size={16} />
-                  <select
-                    aria-label="Vehicle size"
-                    value={vehicle}
-                    onChange={(e) => setVehicle(e.target.value)}
-                  >
-                    {vehicleTypes.map((v) => (
-                      <option key={v}>{v}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
               <button
                 className="chip map-switch"
                 onClick={() => {
@@ -772,7 +848,7 @@ export default function App() {
               </button>
             </div>
             {error && !modal && (
-              <div role="alert" className="error">
+              <div role="alert" className="error transient-error">
                 {error}
                 <button onClick={refresh}>Try again</button>
               </div>
@@ -850,7 +926,6 @@ export default function App() {
                       onClick={() => {
                         setQuery("");
                         setSearch("");
-                        setFilter("All spaces");
                         setVehicle("Bike");
                       }}
                     >
@@ -858,28 +933,34 @@ export default function App() {
                     </button>
                   </div>
                 ) : (
-                  filtered.map((s, i) => (
+                  filtered.map((s) => (
                     <article
                       key={s.id}
                       className={
                         "parking-card glass " +
                         (selected?.id === s.id ? "highlighted" : "")
                       }
+                      role="button"
+                      tabIndex={s.available ? 0 : -1}
+                      aria-label={`${s.available ? "View" : "Unavailable"} ${s.name}`}
+                      aria-disabled={!s.available}
+                      onClick={() => {
+                        if (s.available) {
+                          setSelected(s);
+                          setModal("detail");
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (
+                          s.available &&
+                          (event.key === "Enter" || event.key === " ")
+                        ) {
+                          event.preventDefault();
+                          setSelected(s);
+                          setModal("detail");
+                        }
+                      }}
                     >
-                      <div className={"space-art art-" + (i % 3)}>
-                        <ParkingCircle size={34} />
-                        <span>{s.kind}</span>
-                        <div className="art-meta">
-                          <span>{s.covered ? "Covered" : "Open air"}</span>
-                          <span>
-                            {s.ev ? (
-                              <Zap size={14} />
-                            ) : (
-                              <ShieldCheck size={14} />
-                            )}
-                          </span>
-                        </div>
-                      </div>
                       <div className="card-content">
                         <div className="card-top">
                           <span className="eyebrow">{s.area}</span>
@@ -889,7 +970,10 @@ export default function App() {
                               (saved.includes(s.id) ? "is-saved" : "")
                             }
                             aria-label={`${saved.includes(s.id) ? "Unsave" : "Save"} ${s.name}`}
-                            onClick={() => save(s.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              save(s.id);
+                            }}
                           >
                             <Bookmark
                               size={18}
@@ -899,15 +983,7 @@ export default function App() {
                             />
                           </button>
                         </div>
-                        <button
-                          className="title-button"
-                          onClick={() => {
-                            setSelected(s);
-                            setModal("detail");
-                          }}
-                        >
-                          <h3>{s.name}</h3>
-                        </button>
+                        <h3 className="card-title">{s.name}</h3>
                         <p className="address">
                           <MapPin size={13} />
                           {s.address}
@@ -923,24 +999,16 @@ export default function App() {
                         <div className="card-bottom">
                           <div>
                             <strong>
-                              {money(s.price)}
-                              <small> / hour</small>
+                              {money(pricing(s.price).rate)}
+                              <small>{pricing(s.price).unit}</small>
                             </strong>
                             <span>
-                              {money(s.price * duration)} for {duration} hours
+                              {money(pricing(s.price).total)} for {pricing(s.price).label}
                             </span>
                           </div>
-                          <button
-                            className="btn outline small"
-                            disabled={!s.available}
-                            onClick={() => {
-                              setSelected(s);
-                              setModal("detail");
-                            }}
-                          >
-                            {s.available ? "View space" : "Unavailable"}
-                            <ArrowUpRight size={16} />
-                          </button>
+                          {!s.available && (
+                            <span className="card-unavailable">Unavailable</span>
+                          )}
                         </div>
                         <p
                           className={
@@ -985,6 +1053,7 @@ export default function App() {
                   scrollWheelZoom={false}
                 >
                   <Recenter center={center} visible={mobileMap} />
+                  <RecenterOnLocation location={userLocation} />
                   <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -1010,7 +1079,29 @@ export default function App() {
                       <Popup>{s.name}</Popup>
                     </Marker>
                   ))}
+                  {userLocation && (
+                    <Marker
+                      position={userLocation}
+                      icon={L.divIcon({
+                        className: "user-location-marker",
+                        html: "<span></span>",
+                        iconSize: [22, 22],
+                        iconAnchor: [11, 11],
+                      })}
+                    >
+                      <Popup>You are here</Popup>
+                    </Marker>
+                  )}
                 </MapContainer>
+                <button
+                  className={"map-location-button " + (locating ? "locating" : "")}
+                  type="button"
+                  onClick={locateUser}
+                  aria-label="Use my location"
+                  title="Use my location"
+                >
+                  <Navigation size={18} />
+                </button>
                 {(mapFocus || filtered[0]) && (
                   <div className="map-bottom glass">
                     <span className="map-sheet-handle" />
@@ -1328,36 +1419,39 @@ export default function App() {
                 <span className="eyebrow">AT THE GATE</span>
                 <h2>A smoother welcome.</h2>
                 <p>
-                  Enter the booking reference from a guest’s pass. You can check
-                  in guests for your locations and events.
+                  Scan the QR on a guest’s pass to check them in at your
+                  location.
                 </p>
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    if (!aiReady) {
-                      setError(
-                        "Run the local AI photo check before publishing this space.",
-                      );
-                      return;
-                    }
-                    action(async () => {
-                      const r = await api("/checkin", { id: checkId });
-                      setToast(`Checked in ${r.plate}`);
-                      setCheckId("");
-                      refresh();
-                    });
+                    checkIn();
                   }}
                 >
+                  <button
+                    className="scanner-launch"
+                    type="button"
+                    onClick={() => {
+                      setScanError("");
+                      setScanOpen(true);
+                    }}
+                  >
+                    <span className="scanner-icon"><ScanLine size={23} /></span>
+                    <span>
+                      <strong>Scan guest pass</strong>
+                      <small>Use your camera to read the QR code</small>
+                    </span>
+                    <Camera size={18} />
+                  </button>
                   {field(
-                    "Booking reference",
+                    "Or enter reference manually",
                     <input
                       value={checkId}
-                      required
                       onChange={(e) => setCheckId(e.target.value)}
-                      placeholder="Paste pass reference"
+                      placeholder="Booking ID"
                     />,
                   )}
-                  <button className="btn dark wide" disabled={busy}>
+                  <button className="btn dark wide" disabled={busy || !checkId}>
                     Verify & check in
                     <Check size={16} />
                   </button>
@@ -1368,7 +1462,8 @@ export default function App() {
                   </p>
                 )}
                 <p className="fine">
-                  Online verification required. Opens 30 minutes before arrival.
+                  The pass is checked online and can only be used during its
+                  arrival window.
                 </p>
               </section>
             </div>
@@ -1419,6 +1514,229 @@ export default function App() {
         <div className="toast glass" role="status">
           <Check size={17} />
           {toast}
+        </div>
+      )}
+      {scanOpen && (
+        <div
+          className="overlay scanner-overlay"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setScanOpen(false);
+          }}
+        >
+          <section
+            className="scanner-modal glass"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Scan guest parking pass"
+          >
+            <div className="scanner-heading">
+              <div>
+                <span className="eyebrow">AT THE GATE</span>
+                <h2>Scan the guest pass</h2>
+              </div>
+              <button
+                className="icon-btn"
+                type="button"
+                onClick={() => setScanOpen(false)}
+                aria-label="Close scanner"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="scanner-frame">
+              <video ref={scanVideoRef} playsInline muted aria-label="Camera preview" />
+              <span className="scanner-corner corner-tl" />
+              <span className="scanner-corner corner-tr" />
+              <span className="scanner-corner corner-bl" />
+              <span className="scanner-corner corner-br" />
+              <span className="scanner-line" />
+            </div>
+            <p className="scanner-hint">
+              Center the QR code from the guest’s parking pass inside the frame.
+            </p>
+            {scanError && <p className="error" role="alert">{scanError}</p>}
+            <button
+              className="text-btn"
+              type="button"
+              onClick={() => setScanOpen(false)}
+            >
+              Use the manual reference instead
+            </button>
+          </section>
+        </div>
+      )}
+      {onboarding && (
+        <div className="onboarding-shell" role="presentation">
+          <div className="onboarding-backdrop" />
+          <section
+            className="onboarding-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="onboarding-title"
+          >
+            <div className="onboarding-topline">
+              <button
+                className="onboarding-skip"
+                type="button"
+                onClick={finishOnboarding}
+              >
+                Skip intro
+              </button>
+              <span>Parkly / 01</span>
+            </div>
+            <div className="onboarding-progress" aria-label="Onboarding progress">
+              {[0, 1, 2].map((step) => (
+                <span
+                  key={step}
+                  className={step <= onboardingStep ? "active" : ""}
+                />
+              ))}
+            </div>
+            <div
+              key={onboardingStep}
+              className={`onboarding-slide onboarding-slide-${onboardingDirection}`}
+              aria-live="polite"
+            >
+              {onboardingStep === 0 && (
+                <>
+                  <div className="onboarding-art onboarding-art-hero">
+                    <span className="onboarding-orbit orbit-one" />
+                    <span className="onboarding-orbit orbit-two" />
+                    <span className="onboarding-pin">
+                      <MapPin size={26} />
+                    </span>
+                    <span className="onboarding-route route-one" />
+                    <span className="onboarding-route route-two" />
+                  </div>
+                  <span className="eyebrow">PARKING, WITHOUT THE HUNT</span>
+                  <h1 id="onboarding-title">
+                    Start closer.
+                    <br />
+                    Arrive <em>calmer.</em>
+                  </h1>
+                  <p>
+                    Parkly helps you find a verified space before the drive,
+                    so the last few minutes feel easy.
+                  </p>
+                </>
+              )}
+              {onboardingStep === 1 && (
+                <>
+                  <div className="onboarding-art onboarding-art-flow">
+                    <span className="flow-step flow-search">
+                      <Search size={22} />
+                    </span>
+                    <span className="flow-line" />
+                    <span className="flow-step flow-calendar">
+                      <CalendarDays size={22} />
+                    </span>
+                    <span className="flow-line" />
+                    <span className="flow-step flow-pass">
+                      <Ticket size={22} />
+                    </span>
+                  </div>
+                  <span className="eyebrow">THREE SMALL MOVES</span>
+                  <h1 id="onboarding-title">
+                    Search. Reserve.
+                    <br />
+                    <em>Go.</em>
+                  </h1>
+                  <div className="onboarding-points">
+                    <span><b>01</b> Tell us where you’re headed.</span>
+                    <span><b>02</b> Choose the time that fits.</span>
+                    <span><b>03</b> Arrive with a ready-to-use pass.</span>
+                  </div>
+                </>
+              )}
+              {onboardingStep === 2 && (
+                <>
+                  <div className="onboarding-art onboarding-art-preferences">
+                    <Car size={40} />
+                    <span>YOUR PARKING PROFILE</span>
+                  </div>
+                  <span className="eyebrow">MAKE PARKING FIT</span>
+                  <h1 id="onboarding-title">
+                    A better match,
+                    <br />
+                    <em>from the start.</em>
+                  </h1>
+                  <p>Set your defaults once. We’ll keep the search focused.</p>
+                  <form
+                    className="onboarding-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      finishOnboarding();
+                    }}
+                  >
+                    {field(
+                      "Vehicle type",
+                      <select
+                        value={vehicle}
+                        onChange={(event) => setVehicle(event.target.value)}
+                      >
+                        {vehicleTypes.map((type) => (
+                          <option key={type}>{type}</option>
+                        ))}
+                      </select>,
+                    )}
+                    <div className="onboarding-checks">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={requirements.covered}
+                          onChange={(event) =>
+                            setRequirements({
+                              ...requirements,
+                              covered: event.target.checked,
+                            })
+                          }
+                        />
+                        Covered
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={requirements.ev}
+                          onChange={(event) =>
+                            setRequirements({
+                              ...requirements,
+                              ev: event.target.checked,
+                            })
+                          }
+                        />
+                        EV charging
+                      </label>
+                    </div>
+                    <button className="btn dark wide" type="submit">
+                      Find my spaces <ArrowRight size={17} />
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
+            <div className="onboarding-actions">
+              {onboardingStep > 0 ? (
+                <button
+                  className="onboarding-back"
+                  type="button"
+                  onClick={() => moveOnboarding("back")}
+                >
+                  Back
+                </button>
+              ) : (
+                <span />
+              )}
+              {onboardingStep < 2 && (
+                <button
+                  className="btn dark"
+                  type="button"
+                  onClick={() => moveOnboarding("next")}
+                >
+                  Continue <ArrowRight size={17} />
+                </button>
+              )}
+            </div>
+          </section>
         </div>
       )}
       {scheduleField && (
@@ -1527,6 +1845,8 @@ export default function App() {
                     ? "Create event"
                     : modal === "listing"
                       ? "List a space"
+                      : modal === "preferences"
+                        ? "Parking preferences"
                       : "Parking dialog"
             }
             className={"modal glass " + (modal === "pass" ? "pass-modal" : "")}
@@ -1539,6 +1859,75 @@ export default function App() {
             >
               <X size={20} />
             </button>
+            {modal === "preferences" && (
+              <>
+                <span className="eyebrow">MAKE PARKING FIT</span>
+                <h2>What do you need today?</h2>
+                <p>We’ll use these preferences to show compatible spaces.</p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    setModal("");
+                  }}
+                >
+                  {field(
+                    "Vehicle type",
+                    <select
+                      value={vehicle}
+                      onChange={(e) => setVehicle(e.target.value)}
+                    >
+                      {vehicleTypes.map((v) => (
+                        <option key={v}>{v}</option>
+                      ))}
+                    </select>,
+                  )}
+                  <div className="checks">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={requirements.covered}
+                        onChange={(e) =>
+                          setRequirements({
+                            ...requirements,
+                            covered: e.target.checked,
+                          })
+                        }
+                      />
+                      Covered parking
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={requirements.ev}
+                        onChange={(e) =>
+                          setRequirements({
+                            ...requirements,
+                            ev: e.target.checked,
+                          })
+                        }
+                      />
+                      EV charging
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={requirements.budget}
+                        onChange={(e) =>
+                          setRequirements({
+                            ...requirements,
+                            budget: e.target.checked,
+                          })
+                        }
+                      />
+                      Under ₹40 per hour
+                    </label>
+                  </div>
+                  <button className="btn dark wide" type="submit">
+                    Find my spaces <ArrowRight size={17} />
+                  </button>
+                </form>
+              </>
+            )}
             {modal === "detail" && selected && (
               <>
                 <span className="eyebrow">
@@ -1578,8 +1967,8 @@ export default function App() {
                     {dateLabel(start)} → {dateLabel(end)}
                   </span>
                   <strong>
-                    {money(selected.price * duration)}{" "}
-                    <small>total · {duration} hours</small>
+                    {money(pricing(selected.price).total)}{" "}
+                    <small>total · {pricing(selected.price).label}</small>
                   </strong>
                 </div>
                 <form
@@ -1947,14 +2336,13 @@ export default function App() {
                     )}
                     <strong>
                       {aiBusy
-                        ? "Analyzing on your device…"
+                        ? "Scanning this plot on your device…"
                         : aiReady
-                          ? "Local AI check complete"
-                          : "Add a photo · run local AI check"}
+                          ? "Plot scan complete"
+                          : "Scan this plot with local AI"}
                     </strong>
                     <span>
-                      Private scene classification. The image stays on your
-                      device.
+                      A private on-device check for the space you are adding.
                     </span>
                   </label>
                   {aiStatus && (
@@ -1964,10 +2352,11 @@ export default function App() {
                     </p>
                   )}
                   <p className="fine">
-                    Required MobileViT analysis runs locally on the phone using
-                    CPU/WASM. It suggests environmental cues while you confirm
-                    dimensions, access and vehicle fit. The photo stays on the
-                    device and is not saved to the listing.
+                    This is the only AI step in Parkly. MobileViT runs locally
+                    on the phone using CPU/WASM and suggests environmental
+                    cues while you confirm dimensions, access and vehicle fit.
+                    The photo stays on the device and is not saved to the
+                    listing.
                   </p>
                   {field(
                     "Listing name",

@@ -170,6 +170,14 @@ export function createStore(path = ":memory:") {
   const fits = (space, vehicle) =>
     ["Bike", "Hatchback", "Sedan", "SUV"].indexOf(vehicle) <=
     ["Bike", "Hatchback", "Sedan", "SUV"].indexOf(space.vehicle);
+  const priceForStay = (price, start, end) => {
+    const hours = Math.max(
+      1,
+      Math.ceil((Date.parse(end) - Date.parse(start)) / 3600000),
+    );
+    if (hours <= 24 * 10) return hours * price;
+    return Math.ceil(hours / (24 * 30)) * price * 24 * 30;
+  };
   const book = db.transaction(
     ({ session, spaceId, eventId, start, end, vehicle, plate }) => {
       let allocation = null,
@@ -233,8 +241,7 @@ export function createStore(path = ":memory:") {
         status: "confirmed",
         total: eventId
           ? 0
-          : Math.ceil((Date.parse(end) - Date.parse(start)) / 3600000) *
-            space.price,
+          : priceForStay(space.price, start, end),
       };
       db.prepare(
         "INSERT INTO bookings VALUES (@id,@session,@space_id,@event_id,@allocation_id,@start,@end,@vehicle,@plate,@status,@total)",

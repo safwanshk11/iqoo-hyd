@@ -24,6 +24,18 @@ Open http://localhost:3001. Both servers bind to localhost by default. Phone acc
 npm test
 ```
 
+## Shared Neon database
+
+The app can use Neon PostgreSQL instead of local SQLite. Set `DATABASE_URL` in the
+server environment using the format in `.env.example`; never expose it to the
+browser or commit it. When present, the server creates the Neon schema and seeds
+the demo spaces on first start. Without it, local SQLite remains the fallback for
+offline development and tests.
+
+For a two-person demo, host the API as well as the database so both devices use
+the same HTTPS API. The frontend already calls the API through relative `/api`
+routes.
+
 ## Android APK
 
 Parkly includes a Capacitor Android project with package ID `com.safwanshk.parkly`.
@@ -46,7 +58,7 @@ Prebuilt development APKs are published under this repository's GitHub Releases.
 - SQLite-backed transactional capacity accounting. Event allocations consume shared inventory before guests claim passes.
 - Organizer events with bulk capacity reservations, invite URLs, compatible guest claims, duplicate-claim protection, and capacity tracking.
 - Owner listing form with entrance coordinates, vehicle restrictions, capacity and price; owner arrivals and authorized online check-in.
-- Required browser-local MobileViT analysis in the owner-listing flow. The open-source model runs through CPU/WASM on the phone; images are not uploaded to the backend or saved to listings.
+- The only AI-assisted feature is the owner plot-listing flow: browser-local MobileViT analysis runs through CPU/WASM on the phone; images are not uploaded to the backend or saved to listings.
 - Automatic PDF parking passes with QR references and the Android share sheet for WhatsApp, email, Drive or local saving.
 - Keyboard focus trap, labels, reduced-motion support, responsive layouts, empty/error/loading states.
 
@@ -56,13 +68,13 @@ This is a working local prototype, not a production marketplace or full JustPark
 
 Identity is a random browser-local bearer session, not verified login. Keep the prototype local until real authentication, account recovery, abuse protection, authorization review and deployment hardening are implemented. Anyone with a session token can act as that session. Event links are bearer invitations; anyone with the link can attempt to claim a pass.
 
-Listings currently have continuous availability. Owner schedule editing, verification, reviews, pricing plans, payments, payouts, refunds, notifications, QR camera scanning, location search/geocoding and production mapping contracts remain future work. The attendant enters a QR's booking reference manually; verification requires connectivity. Generated PDF passes can be kept offline, but are not signed offline credentials.
+Listings currently have continuous availability. Owner schedule editing, verification, reviews, pricing plans, payments, payouts, refunds, notifications, location search/geocoding and production mapping contracts remain future work. The attendant can scan a QR pass with the browser camera or enter its booking reference manually; verification requires connectivity. Generated PDF passes can be kept offline, but are not signed offline credentials.
 
 Monthly selects a 30-day window at the hourly rate; there is no monthly discount product. Airport search selects the Shamshabad demo area and does not include airport access or shuttles.
 
 Event locations are allocated in the organizer's selected order, not calculated walking distance. A parking location has fungible capacity rather than individually numbered bays. No automatic release of no-shows or event cancellation UI is implemented.
 
-The owner-listing flow requires `Xenova/mobilevit-xx-small` via Transformers.js, executing locally through CPU/WASM. Initial model/WASM downloads need connectivity. It supplies general environmental labels that support listing review; it does not provide calibrated measurements, obstacle guarantees, parking suitability or NPU acceleration. Owners must still confirm dimensions, access and vehicle fit.
+The owner plot-listing flow uses `Xenova/mobilevit-xx-small` via Transformers.js, executing locally through CPU/WASM. Initial model/WASM downloads need connectivity. It supplies general environmental labels that support listing review; it does not provide calibrated measurements, obstacle guarantees, parking suitability or NPU acceleration. Owners must still confirm dimensions, access and vehicle fit.
 
 The interface is a React/Vite PWA-compatible web layer packaged as an Android application with Capacitor. This keeps the project within the hackathon's permitted PWA path while producing an installable APK. Confirm final eligibility and permitted pre-event preparation with the organizers.
 
