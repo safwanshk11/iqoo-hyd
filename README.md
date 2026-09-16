@@ -24,6 +24,20 @@ Open http://localhost:3001. Both servers bind to localhost by default. Phone acc
 npm test
 ```
 
+## Android APK
+
+Parkly includes a Capacitor Android project with package ID `com.safwanshk.parkly`.
+
+```sh
+npm run android:apk
+adb reverse tcp:3001 tcp:3001
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+The debug APK bundles the complete user interface. During development, its booking and event data service runs from this repository on the connected Mac, so the Express server must be running and port 3001 must be forwarded through ADB. A production release still needs hosted APIs, production authentication, release signing and store assets.
+
+Prebuilt development APKs are published under this repository's GitHub Releases. They are debug-signed test builds, not Play Store releases.
+
 ## Implemented
 
 - Destination search across Hyderabad fixtures; time windows; vehicle, covered, EV and price filters; sorting; saved spaces.

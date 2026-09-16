@@ -10,6 +10,14 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "50kb" }));
 app.use("/api", (req, res, next) => {
   res.set("Cache-Control", "no-store");
+  const origin = req.get("Origin");
+  if (origin === "http://localhost" || origin === "capacitor://localhost") {
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Vary", "Origin");
+    res.set("Access-Control-Allow-Headers", "Content-Type, X-Session");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  }
+  if (req.method === "OPTIONS") return res.sendStatus(204);
   if (req.path === "/health") return res.json({ ok: true });
   const session = req.get("X-Session");
   if (!session || !/^[a-f0-9-]{36}$/.test(session))

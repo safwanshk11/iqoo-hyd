@@ -34,6 +34,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { Capacitor } from "@capacitor/core";
 import "leaflet/dist/leaflet.css";
 import "./style.css";
 type Space = {
@@ -82,7 +83,10 @@ if (!session) {
   localStorage.setItem("parkly-session", session);
 }
 async function api(path: string, body?: unknown) {
-  const r = await fetch("/api" + path, {
+  const apiRoot = Capacitor.isNativePlatform()
+    ? "http://127.0.0.1:3001/api"
+    : "/api";
+  const r = await fetch(apiRoot + path, {
     method: body ? "POST" : "GET",
     headers: { "Content-Type": "application/json", "X-Session": session! },
     body: body ? JSON.stringify(body) : undefined,
