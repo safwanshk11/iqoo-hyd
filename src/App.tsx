@@ -28,6 +28,7 @@ import {
   Sparkles,
   LoaderCircle,
   Upload,
+  Share2,
   ChevronRight,
   Map as MapIcon,
   List,
@@ -35,6 +36,10 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Capacitor } from "@capacitor/core";
+import { Directory, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
+import { jsPDF } from "jspdf";
+import QRCode from "qrcode";
 import "leaflet/dist/leaflet.css";
 import "./style.css";
 type Space = {
@@ -170,6 +175,7 @@ export default function App() {
     [loading, setLoading] = useState(true),
     [filter, setFilter] = useState("All spaces"),
     [sort, setSort] = useState("Recommended"),
+    [sortOpen, setSortOpen] = useState(false),
     [mobileMap, setMobileMap] = useState(false),
     [invite, setInvite] = useState<Event | null>(null),
     [checkId, setCheckId] = useState("");
@@ -194,13 +200,26 @@ export default function App() {
   });
   const [aiStatus, setAiStatus] = useState(""),
     [aiBusy, setAiBusy] = useState(false),
+    [aiReady, setAiReady] = useState(false),
     [preview, setPreview] = useState("");
   function navigate(p: string) {
     setPage(p);
     setMenu(false);
+    setSortOpen(false);
     setError("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "auto" });
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
   }
+  useEffect(() => {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    window.scrollTo({ top: 0, behavior: "auto" });
+    const id = window.setTimeout(
+      () => window.scrollTo({ top: 0, behavior: "auto" }),
+      0,
+    );
+    return () => window.clearTimeout(id);
+  }, [page]);
   async function refresh() {
     setLoading(true);
     try {
@@ -302,12 +321,79 @@ export default function App() {
         plate,
       });
       const all = await api("/bookings");
+      const createdPass = all.find((x: Booking) => x.id === b.id) as Booking;
       setBookings(all);
-      setPass(all.find((x: Booking) => x.id === b.id));
+      setPass(createdPass);
       setModal("pass");
       await refresh();
-      setToast("Your parking space is reserved");
+      try {
+        await sharePassPdf(createdPass);
+        setToast("Reserved. Your PDF pass is ready to share");
+      } catch {
+        setToast("Reserved. Open the pass to share its PDF");
+      }
     });
+  }
+  async function sharePassPdf(booking: Booking) {
+    const qrValue = JSON.stringify({ type: "parkly-pass", id: booking.id });
+    const qrData = await QRCode.toDataURL(qrValue, {
+      width: 480,
+      margin: 2,
+      color: { dark: "#09111f", light: "#ffffff" },
+    });
+    const doc = new jsPDF({ unit: "mm", format: "a5" });
+    doc.setFillColor(244, 247, 251);
+    doc.rect(0, 0, 148, 210, "F");
+    doc.setTextColor(9, 17, 31);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(24);
+    doc.text("Parkly", 16, 22);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(69, 84, 104);
+    doc.text("CONFIRMED PARKING PASS", 16, 31);
+    doc.setTextColor(9, 17, 31);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(17);
+    doc.text(booking.name, 16, 48, { maxWidth: 80 });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(69, 84, 104);
+    doc.text(booking.address, 16, 60, { maxWidth: 80 });
+    doc.addImage(qrData, "PNG", 98, 38, 34, 34);
+    doc.setDrawColor(210, 220, 232);
+    doc.line(16, 80, 132, 80);
+    doc.setTextColor(9, 17, 31);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(19);
+    doc.text(booking.plate, 16, 94);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(69, 84, 104);
+    doc.text(`Arrive: ${dateLabel(booking.start)}`, 16, 108);
+    doc.text(`Leave: ${dateLabel(booking.end)}`, 16, 116);
+    doc.text(booking.instructions, 16, 132, { maxWidth: 116 });
+    doc.setFontSize(8);
+    doc.text(`Booking reference: ${booking.id}`, 16, 190);
+    doc.text("Demo pass · Online verification required", 16, 198);
+    const safePlate = booking.plate.replace(/[^A-Z0-9]/gi, "-");
+    const fileName = `Parkly-${safePlate}.pdf`;
+    if (Capacitor.isNativePlatform()) {
+      const data = doc.output("datauristring").split(",")[1];
+      const savedFile = await Filesystem.writeFile({
+        path: fileName,
+        data,
+        directory: Directory.Cache,
+      });
+      await Share.share({
+        title: "Parkly parking pass",
+        text: `${booking.name} · ${booking.plate}`,
+        url: savedFile.uri,
+        dialogTitle: "Send or save your parking pass",
+      });
+      return;
+    }
+    doc.save(fileName);
   }
   async function copyInvite(e: Event) {
     const url = location.origin + "/?invite=" + e.id;
@@ -328,6 +414,7 @@ export default function App() {
     const url = URL.createObjectURL(file);
     setPreview(url);
     setAiBusy(true);
+    setAiReady(false);
     setAiStatus(
       "Downloading the open-source vision model. The first run may take a minute.",
     );
@@ -348,11 +435,13 @@ export default function App() {
             .join(", ") +
           ". General scene labels only. Confirm parking suitability, dimensions and access yourself.",
       );
+      setAiReady(true);
       await model.dispose();
     } catch {
       setAiStatus(
-        "The vision model could not load. Check connectivity and try the photo again. You can still complete the listing manually.",
+        "The local vision check could not finish. Check connectivity and try the photo again before publishing.",
       );
+      setAiReady(false);
     } finally {
       setAiBusy(false);
     }
@@ -395,9 +484,6 @@ export default function App() {
       <header className="nav-shell">
         <div className="nav glass">
           <button className="brand" onClick={() => navigate("discover")}>
-            <span className="brand-symbol">
-              <ParkingCircle size={25} />
-            </span>
             Park<span className="serif">ly</span>
             <span className="beta">HYD</span>
           </button>
@@ -464,15 +550,16 @@ export default function App() {
                     </>
                   ) : (
                     <>
-                      A little less circling.
-                      <br />A lot more <em>arriving.</em>
+                      Park closer.
+                      <br />
+                      Arrive <em>calmer.</em>
                     </>
                   )}
                 </h1>
                 <p>
                   {page === "saved"
                     ? "The places you want to come back to."
-                    : "From your morning coffee to their big day. Find your space in Hyderabad."}
+                    : "Find a verified space before the drive, or reserve parking for every guest."}
                 </p>
               </div>
               <div className="intro-note">
@@ -655,18 +742,47 @@ export default function App() {
                       <span>· {vehicle}</span>
                     </p>
                   </div>
-                  <label className="sort">
-                    <SlidersHorizontal size={15} />
-                    <select
-                      aria-label="Sort parking"
-                      value={sort}
-                      onChange={(e) => setSort(e.target.value)}
+                  <div className="sort">
+                    <button
+                      className="sort-trigger"
+                      type="button"
+                      aria-haspopup="listbox"
+                      aria-expanded={sortOpen}
+                      onClick={() => setSortOpen(!sortOpen)}
                     >
-                      <option>Recommended</option>
-                      <option>Price: low to high</option>
-                      <option>Most availability</option>
-                    </select>
-                  </label>
+                      <SlidersHorizontal size={15} />
+                      <span>{sort}</span>
+                      <ChevronDown size={14} />
+                    </button>
+                    {sortOpen && (
+                      <div
+                        className="sort-menu glass"
+                        role="listbox"
+                        aria-label="Sort parking"
+                      >
+                        {[
+                          "Recommended",
+                          "Price: low to high",
+                          "Most availability",
+                        ].map((option) => (
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={sort === option}
+                            className={sort === option ? "selected" : ""}
+                            key={option}
+                            onClick={() => {
+                              setSort(option);
+                              setSortOpen(false);
+                            }}
+                          >
+                            <span>{option}</span>
+                            {sort === option && <Check size={15} />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {loading ? (
                   <div className="loading">
@@ -798,13 +914,15 @@ export default function App() {
                 <MapContainer
                   center={center}
                   zoom={14}
-                  zoomControl={false}
+                  zoomControl
                   scrollWheelZoom={false}
                 >
                   <Recenter center={center} visible={mobileMap} />
                   <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    detectRetina
+                    maxZoom={19}
                   />
                   {filtered.map((s) => (
                     <Marker
@@ -1126,6 +1244,12 @@ export default function App() {
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
+                    if (!aiReady) {
+                      setError(
+                        "Run the local AI photo check before publishing this space.",
+                      );
+                      return;
+                    }
                     action(async () => {
                       const r = await api("/checkin", { id: checkId });
                       setToast(`Checked in ${r.plate}`);
@@ -1269,7 +1393,7 @@ export default function App() {
                   rel="noreferrer"
                   href={`https://www.google.com/maps/dir/?api=1&destination=${selected.lat},${selected.lng}`}
                 >
-                  View entrance on Google Maps
+                  Directions
                   <ArrowUpRight size={16} />
                 </a>
                 <div className="reservation-summary">
@@ -1365,7 +1489,7 @@ export default function App() {
                   href={`https://www.google.com/maps/dir/?api=1&destination=${pass.lat},${pass.lng}`}
                 >
                   <Navigation size={17} />
-                  Navigate to entrance
+                  Directions
                   <ArrowUpRight size={17} />
                 </a>
                 <button
@@ -1383,9 +1507,18 @@ export default function App() {
                   Copy booking reference
                 </button>
                 <code className="reference">{pass.id}</code>
+                <button
+                  className="btn outline wide"
+                  type="button"
+                  onClick={() => sharePassPdf(pass)}
+                >
+                  <Share2 size={17} />
+                  Share PDF pass
+                </button>
                 <p className="fine">
-                  Save a screenshot for arrival. The attendant verifies your
-                  pass online.
+                  Your PDF pass can be sent through WhatsApp or email, saved to
+                  Drive, or downloaded from the share sheet. Online verification
+                  is required at the gate.
                 </p>
               </>
             )}
@@ -1638,7 +1771,9 @@ export default function App() {
                     <strong>
                       {aiBusy
                         ? "Analyzing on your device…"
-                        : "Add a photo · try local AI"}
+                        : aiReady
+                          ? "Local AI check complete"
+                          : "Add a photo · run local AI check"}
                     </strong>
                     <span>
                       Private scene classification. The image stays on your
@@ -1652,10 +1787,10 @@ export default function App() {
                     </p>
                   )}
                   <p className="fine">
-                    Optional MobileViT image classification runs in your browser
-                    (CPU/WASM). It does not measure spaces or verify vehicle
-                    fit. The photo is used for this analysis only and is not
-                    saved to the listing.
+                    Required MobileViT analysis runs locally on the phone using
+                    CPU/WASM. It suggests environmental cues while you confirm
+                    dimensions, access and vehicle fit. The photo stays on the
+                    device and is not saved to the listing.
                   </p>
                   {field(
                     "Listing name",
@@ -1806,7 +1941,7 @@ export default function App() {
                     Preview listings are available at all times. Availability
                     schedules and payouts are not enabled.
                   </p>
-                  <button className="btn dark wide" disabled={busy}>
+                  <button className="btn dark wide" disabled={busy || !aiReady}>
                     Publish demo listing
                     <ArrowRight size={17} />
                   </button>

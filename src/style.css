@@ -473,16 +473,56 @@ main {
   color: var(--ink-tertiary);
 }
 .sort {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  position: relative;
   color: var(--ink-secondary);
 }
-.sort select {
-  border: 0;
-  background: none;
+.sort-trigger {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #d6dfe9;
+  border-radius: 100px;
+  background: #ffffff75;
   font-size: 11px;
-  max-width: 137px;
+  color: var(--ink-secondary);
+  box-shadow: inset 0 1px 0 #fff;
+}
+.sort-trigger:hover,
+.sort-trigger[aria-expanded="true"] {
+  background: #fff;
+  border-color: #bdcada;
+}
+.sort-menu {
+  position: absolute;
+  z-index: 900;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  padding: 7px;
+  border-radius: 16px;
+  background: #f8fbfff2;
+  box-shadow:
+    0 18px 45px #1d304d1f,
+    inset 0 1px 0 #fff;
+}
+.sort-menu button {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 11px;
+  border-radius: 11px;
+  color: var(--ink-secondary);
+  font-size: 12px;
+  text-align: left;
+}
+.sort-menu button:hover,
+.sort-menu button.selected {
+  color: var(--ink);
+  background: #e7eef7;
 }
 .parking-card {
   display: flex;
@@ -665,6 +705,17 @@ main {
 .leaflet-control-attribution {
   font-size: 8px !important;
   background: #ffffffaa !important;
+}
+.leaflet-control-zoom {
+  border: 1px solid #ffffffcc !important;
+  border-radius: 13px !important;
+  overflow: hidden;
+  box-shadow: var(--shadow) !important;
+}
+.leaflet-control-zoom a {
+  color: var(--ink) !important;
+  background: #f8fbfff0 !important;
+  border-color: var(--line) !important;
 }
 .map-caption {
   position: absolute;
@@ -1599,20 +1650,33 @@ footer > span:last-child {
     font-size: 11px;
   }
   .sort {
-    gap: 3px;
+    flex-shrink: 0;
   }
-  .sort select {
+  .sort-trigger {
+    min-height: 34px;
+    padding: 7px 9px;
+    gap: 5px;
     font-size: 10px;
-    max-width: 114px;
+    max-width: 148px;
+  }
+  .sort-trigger span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .map-panel {
     display: none;
   }
   .map-panel.mobile-shown {
     display: block;
-    height: 500px;
+    width: calc(100% + 36px);
+    height: calc(100dvh - 145px);
+    min-height: 680px;
+    margin: 0 -18px -40px;
     position: relative;
     top: 0;
+    border: 0;
+    border-radius: 0;
   }
   .mobile-hidden {
     display: none;

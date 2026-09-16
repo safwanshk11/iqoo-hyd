@@ -1,6 +1,6 @@
 {
   "name": "parkly",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,12 +15,16 @@
   "dependencies": {
     "@capacitor/android": "^6.2.2",
     "@capacitor/core": "^6.2.2",
+    "@capacitor/filesystem": "^6.0.4",
+    "@capacitor/share": "^6.0.4",
     "@huggingface/transformers": "^4.3.0",
     "@vitejs/plugin-react": "^4.7.0",
     "better-sqlite3": "^11.10.0",
     "express": "^4.21.2",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.468.0",
+    "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -29,6 +33,7 @@
   "devDependencies": {
     "@capacitor/cli": "^6.2.2",
     "@types/leaflet": "^1.9.16",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "concurrently": "^9.1.2",

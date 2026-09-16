@@ -25,5 +25,6 @@ Canvas #f4f7fb; recessed canvas #eaf0f7; ink #09111f; secondary #455468; tertiar
 3. Create an event using available capacity in another location.
 4. Copy the invitation, open it in another browser/session, and claim a compatible space.
 5. View capacity on the organizer screen.
-6. Add a sample owner listing and demonstrate optional local photo classification.
-7. Explain which functionality is implemented and which is a production follow-up.
+6. Add a sample owner listing and complete its required local MobileViT photo analysis.
+7. Reserve a space and share the generated PDF pass through Android's native share sheet.
+8. Explain which functionality is implemented and which is a production follow-up.
