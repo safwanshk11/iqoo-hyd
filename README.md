@@ -36,6 +36,14 @@ For a two-person demo, host the API as well as the database so both devices use
 the same HTTPS API. The frontend already calls the API through relative `/api`
 routes.
 
+### Deploy the shared app
+
+The repository includes `render.yaml` for a one-service Render deployment. Create
+a Render Blueprint from the GitHub repository, set the service's `DATABASE_URL`
+secret to the Neon connection string, and deploy. The service builds the Vite
+frontend and serves it together with the Express API, so every user shares the
+same Neon data without exposing database credentials to the browser.
+
 ## Android APK
 
 Parkly includes a Capacitor Android project with package ID `com.safwanshk.parkly`.
