@@ -371,7 +371,8 @@ main {
   border-radius: 18px;
   gap: 18px;
 }
-.search-fields label {
+.search-fields label,
+.search-fields .schedule-trigger {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -380,10 +381,15 @@ main {
   flex: 1;
   min-width: 0;
 }
+.search-fields .schedule-trigger {
+  text-align: left;
+  color: var(--ink);
+}
 .search-fields .destination {
   flex: 1.5;
 }
-.search-fields label > span {
+.search-fields label > span,
+.search-fields .schedule-trigger > span {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -405,6 +411,17 @@ main {
   padding: 0;
   font-size: 13px;
   height: 24px;
+}
+.schedule-trigger strong {
+  font-size: 12px;
+  font-weight: 450;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.schedule-trigger > svg:last-child {
+  width: 14px;
+  color: var(--ink-tertiary);
 }
 .search-btn {
   padding: 16px 20px;
@@ -725,15 +742,48 @@ main {
   right: 15px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 12px 15px;
+  gap: 10px;
+  padding: 10px;
   font-size: 12px;
-  border-radius: 13px;
+  border-radius: 17px;
 }
-.map-caption span {
+.map-caption-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: white;
+}
+.map-caption-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.map-caption-copy small {
+  font: 8px "Geist Mono", monospace;
+  letter-spacing: 0.1em;
+  color: var(--ink-tertiary);
+}
+.map-caption-copy strong {
+  font-size: 12px;
+  font-weight: 550;
+}
+.map-count {
   margin-left: auto;
   color: var(--ink-tertiary);
   font-size: 10px;
+}
+.map-list-button {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: white;
+  font-size: 11px;
 }
 .price-marker {
   background: none;
@@ -769,21 +819,52 @@ main {
   bottom: 25px;
   left: 15px;
   right: 15px;
-  border-radius: 13px;
+  border-radius: 19px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 13px;
+  gap: 16px;
+  padding: 16px;
   font-size: 10px;
 }
-.map-bottom > svg {
-  margin-left: auto;
+.map-sheet-handle {
+  display: none;
 }
-.map-key {
-  width: 8px;
-  height: 8px;
-  border: 2px solid var(--ink);
-  border-radius: 50%;
+.map-space-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.map-space-copy > strong {
+  font-size: 16px;
+  line-height: 1.15;
+}
+.map-space-copy > small {
+  color: var(--ink-tertiary);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.map-space-action {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.map-space-action > span {
+  font-size: 18px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.map-space-action > span small {
+  font-size: 9px;
+  font-weight: 450;
+  color: var(--ink-tertiary);
+}
+.map-space-action .btn {
+  padding: 10px 13px;
+  font-size: 10px;
+  min-height: 38px;
 }
 .map-switch {
   display: none;
@@ -1068,6 +1149,120 @@ footer > span:last-child {
   justify-content: center;
   z-index: 1000;
   padding: 25px;
+}
+.schedule-popout {
+  width: min(560px, 100%);
+  padding: 26px;
+  border-radius: 28px;
+  background: #f6f9fdf5;
+  box-shadow: 0 30px 90px #09111f38;
+  animation: reveal 0.28s var(--ease);
+}
+.schedule-heading {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+}
+.schedule-heading h2 {
+  margin: 4px 0 0;
+  font-size: 26px;
+  letter-spacing: -0.035em;
+}
+.schedule-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  color: white;
+  background: var(--ink);
+  box-shadow: 0 8px 18px #09111f1f;
+}
+.date-shortcuts,
+.time-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 24px;
+}
+.date-shortcuts button,
+.time-shortcuts button {
+  border: 1px solid #d5dfeb;
+  border-radius: 14px;
+  background: #ffffff8c;
+  color: var(--ink-secondary);
+  min-height: 44px;
+  padding: 9px 12px;
+}
+.date-shortcuts button.selected,
+.time-shortcuts button.selected {
+  color: white;
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.schedule-inputs {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 10px;
+  margin-top: 11px;
+}
+.schedule-inputs label {
+  border: 1px solid #d5dfeb;
+  border-radius: 16px;
+  background: #fff;
+  padding: 11px 13px 9px;
+}
+.schedule-inputs label > span {
+  display: block;
+  margin-bottom: 5px;
+  font: 9px "Geist Mono", monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+.schedule-inputs input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 500 15px "Geist", sans-serif;
+}
+.time-shortcuts {
+  margin-top: 10px;
+}
+.time-shortcuts button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+.time-shortcuts button small {
+  opacity: 0.7;
+  font-size: 9px;
+}
+.schedule-error {
+  margin: 12px 2px 0;
+  color: #9d3030;
+  font-size: 11px;
+}
+.schedule-confirm {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.schedule-confirm > span {
+  margin-right: auto;
+  color: var(--ink-secondary);
+  font-size: 12px;
+}
+.schedule-confirm .btn {
+  min-width: 135px;
 }
 .modal {
   width: 100%;
@@ -1574,13 +1769,14 @@ footer > span:last-child {
     border-bottom: 1px solid var(--line);
     padding-bottom: 12px;
   }
-  .search-fields label {
+  .search-fields label,
+  .search-fields .schedule-trigger {
     flex: 1;
     gap: 7px;
     border-right: 0;
     padding-right: 0;
   }
-  .search-fields label:nth-child(3) {
+  .search-fields .schedule-trigger:first-of-type {
     border-right: 1px solid var(--line);
     padding-right: 5px;
   }
@@ -1591,7 +1787,8 @@ footer > span:last-child {
   .search-fields small {
     font-size: 8px;
   }
-  .search-fields label > svg {
+  .search-fields label > svg,
+  .search-fields .schedule-trigger > svg:first-child {
     width: 16px;
   }
   .search-fields .destination input {
@@ -1677,6 +1874,86 @@ footer > span:last-child {
     top: 0;
     border: 0;
     border-radius: 0;
+  }
+  main.map-active {
+    width: 100%;
+    max-width: none;
+    height: calc(100dvh - 79px);
+    min-height: 610px;
+    padding: 0;
+    overflow: hidden;
+  }
+  .map-active + footer,
+  .map-active .demo-bar,
+  .map-active .page-intro,
+  .map-active .search-island,
+  .map-active .results-top,
+  .map-active .event-banner {
+    display: none;
+  }
+  .map-active .discovery {
+    height: 100%;
+  }
+  .map-active .map-panel.mobile-shown {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+  }
+  .map-active .map-caption {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    padding: 8px;
+    border-radius: 18px;
+  }
+  .map-active .map-count {
+    display: none;
+  }
+  .map-active .map-list-button {
+    display: flex;
+    margin-left: auto;
+  }
+  .map-active .leaflet-top.leaflet-left {
+    top: 72px;
+  }
+  .map-active .map-bottom {
+    left: 10px;
+    right: 10px;
+    bottom: 12px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 13px;
+    padding: 20px 15px 14px;
+    border-radius: 22px;
+  }
+  .map-active .map-sheet-handle {
+    display: block;
+    position: absolute;
+    width: 36px;
+    height: 4px;
+    border-radius: 10px;
+    background: #9cabbc80;
+    top: 7px;
+    left: calc(50% - 18px);
+  }
+  .map-active .map-space-copy > strong {
+    font-size: 15px;
+  }
+  .map-active .map-space-action {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+  .map-active .map-space-action > span {
+    font-size: 16px;
+  }
+  .map-active .map-space-action .btn {
+    min-height: 34px;
+    padding: 8px 10px;
+  }
+  .map-active .price-marker span {
+    box-shadow: 0 5px 16px #09111f38;
   }
   .mobile-hidden {
     display: none;
@@ -1858,6 +2135,22 @@ footer > span:last-child {
   .pass-modal {
     margin: auto;
   }
+  .schedule-overlay {
+    align-items: flex-end;
+    padding: 10px;
+  }
+  .schedule-popout {
+    width: 100%;
+    border-radius: 27px;
+    padding: 21px 18px 18px;
+  }
+  .schedule-heading h2 {
+    font-size: 22px;
+  }
+  .schedule-icon {
+    width: 44px;
+    height: 44px;
+  }
   .toast {
     font-size: 12px;
     border-radius: 16px;
@@ -1879,12 +2172,14 @@ footer > span:last-child {
   }
 }
 @media (max-width: 480px) {
-  .search-fields label {
+  .search-fields label,
+  .search-fields .schedule-trigger {
     flex-basis: 100%;
     border-right: 0 !important;
     padding: 4px 0 !important;
   }
-  .search-fields label > span {
+  .search-fields label > span,
+  .search-fields .schedule-trigger > span {
     display: grid;
     grid-template-columns: 76px 1fr;
     align-items: center;
@@ -1903,6 +2198,25 @@ footer > span:last-child {
   .search-fields .destination > span {
     display: flex;
     gap: 3px;
+  }
+  .schedule-trigger strong {
+    font-size: 13px;
+  }
+  .schedule-inputs {
+    grid-template-columns: 1fr;
+  }
+  .date-shortcuts button,
+  .time-shortcuts button {
+    padding: 8px;
+    font-size: 11px;
+  }
+  .schedule-confirm {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 11px;
+  }
+  .schedule-confirm .btn {
+    width: 100%;
   }
   .page-intro h1 {
     font-size: 39px;

@@ -24,7 +24,6 @@ import {
   House,
   Zap,
   Menu,
-  LocateFixed,
   Sparkles,
   LoaderCircle,
   Upload,
@@ -121,6 +120,14 @@ const dateLabel = (s: string) =>
     hour: "numeric",
     minute: "2-digit",
   });
+const scheduleLabel = (s: string) =>
+  new Date(s).toLocaleString("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 const vehicleTypes = ["Bike", "Hatchback", "Sedan", "SUV"];
 const areaCenters: Record<string, [number, number]> = {
   "Jubilee Hills": [17.433, 78.407],
@@ -138,11 +145,18 @@ function Recenter({
 }) {
   const map = useMap();
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
+    const resize = () => {
       map.invalidateSize();
       map.setView(center, 14);
-    });
-    return () => cancelAnimationFrame(id);
+    };
+    const id = requestAnimationFrame(resize);
+    const first = window.setTimeout(resize, 120);
+    const settled = window.setTimeout(resize, 420);
+    return () => {
+      cancelAnimationFrame(id);
+      window.clearTimeout(first);
+      window.clearTimeout(settled);
+    };
   }, [center[0], center[1], visible]);
   return null;
 }
@@ -177,6 +191,10 @@ export default function App() {
     [sort, setSort] = useState("Recommended"),
     [sortOpen, setSortOpen] = useState(false),
     [mobileMap, setMobileMap] = useState(false),
+    [mapFocus, setMapFocus] = useState<Space | null>(null),
+    [scheduleField, setScheduleField] = useState<"start" | "end" | null>(null),
+    [draftDate, setDraftDate] = useState(""),
+    [draftTime, setDraftTime] = useState(""),
     [invite, setInvite] = useState<Event | null>(null),
     [checkId, setCheckId] = useState("");
   const [newEvent, setNewEvent] = useState({
@@ -209,6 +227,29 @@ export default function App() {
     setError("");
     window.scrollTo({ top: 0, behavior: "auto" });
     requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+  }
+  function openSchedule(field: "start" | "end") {
+    const [date, time] = (field === "start" ? start : end).split("T");
+    setDraftDate(date);
+    setDraftTime(time.slice(0, 5));
+    setScheduleField(field);
+  }
+  function applySchedule() {
+    if (!scheduleField || !draftDate || !draftTime) return;
+    const next = `${draftDate}T${draftTime}`;
+    if (scheduleField === "start") {
+      setStart(next);
+      if (+new Date(next) >= +new Date(end))
+        setEnd(localDate(new Date(+new Date(next) + 3 * 3600000)));
+    } else {
+      if (+new Date(next) <= +new Date(start)) {
+        setError("Leaving time must be after your arrival.");
+        return;
+      }
+      setEnd(next);
+    }
+    setError("");
+    setScheduleField(null);
   }
   useEffect(() => {
     document.documentElement.scrollTop = 0;
@@ -263,9 +304,12 @@ export default function App() {
     }
   }, [toast]);
   useEffect(() => {
-    document.body.style.overflow = modal ? "hidden" : "";
+    document.body.style.overflow = modal || scheduleField ? "hidden" : "";
     const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") {
+        close();
+        setScheduleField(null);
+      }
       if (e.key === "Tab" && modal) {
         const nodes = Array.from(
           document.querySelectorAll<HTMLElement>(
@@ -285,7 +329,7 @@ export default function App() {
     };
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
-  }, [modal]);
+  }, [modal, scheduleField]);
   function close() {
     setModal("");
     setSelected(null);
@@ -529,7 +573,10 @@ export default function App() {
           </div>
         </div>
       </header>
-      <main id="main">
+      <main
+        id="main"
+        className={page === "discover" && mobileMap ? "map-active" : ""}
+      >
         <div className="demo-bar">
           <span className="demo-dot" /> Hyderabad preview{" "}
           <span className="demo-note">
@@ -641,32 +688,32 @@ export default function App() {
                       <option key={a}>{a}</option>
                     ))}
                   </datalist>
-                  <label>
+                  <button
+                    type="button"
+                    className="schedule-trigger"
+                    onClick={() => openSchedule("start")}
+                    aria-label={`Change arrival, currently ${scheduleLabel(start)}`}
+                  >
                     <CalendarDays size={19} />
                     <span>
                       <small>ARRIVING</small>
-                      <input
-                        aria-label="Arriving"
-                        type="datetime-local"
-                        required
-                        value={start}
-                        onChange={(e) => setStart(e.target.value)}
-                      />
+                      <strong>{scheduleLabel(start)}</strong>
                     </span>
-                  </label>
-                  <label>
+                    <ChevronRight size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="schedule-trigger"
+                    onClick={() => openSchedule("end")}
+                    aria-label={`Change leaving, currently ${scheduleLabel(end)}`}
+                  >
                     <Clock size={19} />
                     <span>
                       <small>LEAVING</small>
-                      <input
-                        aria-label="Leaving"
-                        type="datetime-local"
-                        required
-                        value={end}
-                        onChange={(e) => setEnd(e.target.value)}
-                      />
+                      <strong>{scheduleLabel(end)}</strong>
                     </span>
-                  </label>
+                    <ChevronRight size={15} />
+                  </button>
                   <button className="btn dark search-btn" type="submit">
                     <Search size={19} />
                     <span>Find a space</span>
@@ -714,7 +761,11 @@ export default function App() {
               </div>
               <button
                 className="chip map-switch"
-                onClick={() => setMobileMap(!mobileMap)}
+                onClick={() => {
+                  setMobileMap(!mobileMap);
+                  setMapFocus(null);
+                  window.scrollTo({ top: 0, behavior: "auto" });
+                }}
               >
                 {mobileMap ? <List size={15} /> : <MapIcon size={15} />}{" "}
                 {mobileMap ? "List" : "Map"}
@@ -907,11 +958,27 @@ export default function App() {
               </div>
               <div className={"map-panel " + (mobileMap ? "mobile-shown" : "")}>
                 <div className="map-caption glass">
-                  <MapPin size={15} />
-                  {search || "Hyderabad"}
-                  <span>Explore nearby</span>
+                  <span className="map-caption-icon">
+                    <MapPin size={16} />
+                  </span>
+                  <span className="map-caption-copy">
+                    <small>SEARCH AREA</small>
+                    <strong>{search || "Hyderabad"}</strong>
+                  </span>
+                  <span className="map-count">{filtered.length} spaces</span>
+                  <button
+                    type="button"
+                    className="map-list-button"
+                    onClick={() => {
+                      setMobileMap(false);
+                      window.scrollTo({ top: 0, behavior: "auto" });
+                    }}
+                  >
+                    <List size={16} /> List
+                  </button>
                 </div>
                 <MapContainer
+                  key={mobileMap ? "mobile-map" : "desktop-map"}
                   center={center}
                   zoom={14}
                   zoomControl
@@ -936,8 +1003,7 @@ export default function App() {
                       })}
                       eventHandlers={{
                         click: () => {
-                          setSelected(s);
-                          setModal("detail");
+                          setMapFocus(s);
                         },
                       }}
                     >
@@ -945,11 +1011,35 @@ export default function App() {
                     </Marker>
                   ))}
                 </MapContainer>
-                <div className="map-bottom glass">
-                  <span className="map-key" />
-                  <span>Choose a price pin to explore a space</span>
-                  <LocateFixed size={17} />
-                </div>
+                {(mapFocus || filtered[0]) && (
+                  <div className="map-bottom glass">
+                    <span className="map-sheet-handle" />
+                    <div className="map-space-copy">
+                      <span className="eyebrow">
+                        {(mapFocus || filtered[0]).area} ·{" "}
+                        {(mapFocus || filtered[0]).available} available
+                      </span>
+                      <strong>{(mapFocus || filtered[0]).name}</strong>
+                      <small>{(mapFocus || filtered[0]).address}</small>
+                    </div>
+                    <div className="map-space-action">
+                      <span>
+                        {money((mapFocus || filtered[0]).price)}
+                        <small>/hr</small>
+                      </span>
+                      <button
+                        className="btn dark"
+                        type="button"
+                        onClick={() => {
+                          setSelected(mapFocus || filtered[0]);
+                          setModal("detail");
+                        }}
+                      >
+                        View details <ArrowUpRight size={15} />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
             <section className="event-banner glass">
@@ -1329,6 +1419,127 @@ export default function App() {
         <div className="toast glass" role="status">
           <Check size={17} />
           {toast}
+        </div>
+      )}
+      {scheduleField && (
+        <div
+          className="overlay schedule-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setScheduleField(null);
+          }}
+        >
+          <section
+            className="schedule-popout glass"
+            role="dialog"
+            aria-modal="true"
+            aria-label={
+              scheduleField === "start"
+                ? "Choose arrival time"
+                : "Choose leaving time"
+            }
+          >
+            <div className="schedule-heading">
+              <span className="schedule-icon">
+                {scheduleField === "start" ? (
+                  <CalendarDays size={21} />
+                ) : (
+                  <Clock size={21} />
+                )}
+              </span>
+              <div>
+                <span className="eyebrow">
+                  {scheduleField === "start" ? "ARRIVING" : "LEAVING"}
+                </span>
+                <h2>
+                  {scheduleField === "start"
+                    ? "When will you arrive?"
+                    : "When will you leave?"}
+                </h2>
+              </div>
+              <button
+                className="icon-btn"
+                type="button"
+                onClick={() => setScheduleField(null)}
+                aria-label="Close schedule"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="date-shortcuts">
+              {[0, 1, 3].map((days) => {
+                const option = localDate(
+                  new Date(Date.now() + days * 86400000),
+                ).slice(0, 10);
+                return (
+                  <button
+                    type="button"
+                    key={days}
+                    className={draftDate === option ? "selected" : ""}
+                    onClick={() => setDraftDate(option)}
+                  >
+                    {days === 0 ? "Today" : days === 1 ? "Tomorrow" : "+3 days"}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="schedule-inputs">
+              <label>
+                <span>Date</span>
+                <input
+                  type="date"
+                  min={
+                    scheduleField === "end"
+                      ? start.slice(0, 10)
+                      : localDate(new Date()).slice(0, 10)
+                  }
+                  value={draftDate}
+                  onChange={(e) => setDraftDate(e.target.value)}
+                />
+              </label>
+              <label>
+                <span>Time</span>
+                <input
+                  type="time"
+                  step="900"
+                  value={draftTime}
+                  onChange={(e) => setDraftTime(e.target.value)}
+                />
+              </label>
+            </div>
+            <div className="time-shortcuts">
+              {[
+                ["Morning", "09:00"],
+                ["Afternoon", "13:00"],
+                ["Evening", "18:00"],
+              ].map(([label, value]) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={draftTime === value ? "selected" : ""}
+                  onClick={() => setDraftTime(value)}
+                >
+                  <span>{label}</span>
+                  <small>{value}</small>
+                </button>
+              ))}
+            </div>
+            {error && <p className="schedule-error">{error}</p>}
+            <div className="schedule-confirm">
+              <span>
+                {draftDate && draftTime
+                  ? scheduleLabel(`${draftDate}T${draftTime}`)
+                  : "Choose a date and time"}
+              </span>
+              <button
+                className="btn dark"
+                type="button"
+                onClick={applySchedule}
+                disabled={!draftDate || !draftTime}
+              >
+                Confirm <ArrowRight size={17} />
+              </button>
+            </div>
+          </section>
         </div>
       )}
       {modal && (

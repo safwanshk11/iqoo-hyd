@@ -40,8 +40,8 @@ Prebuilt development APKs are published under this repository's GitHub Releases.
 
 ## Implemented
 
-- Destination search across Hyderabad fixtures; time windows; vehicle, covered, EV and price filters; sorting; saved spaces.
-- OpenStreetMap map and selectable price pins, plus a mobile list/map switch.
+- Destination search across Hyderabad fixtures; custom arrival/leaving popouts; vehicle, covered, EV and price filters; sorting; saved spaces.
+- Full-screen mobile OpenStreetMap experience with selectable price pins, a floating search header, listing preview sheet and list/map switch.
 - Parking details, access instructions, hourly totals, reservation, QR reference pass, navigation handoff, and cancellation.
 - SQLite-backed transactional capacity accounting. Event allocations consume shared inventory before guests claim passes.
 - Organizer events with bulk capacity reservations, invite URLs, compatible guest claims, duplicate-claim protection, and capacity tracking.
