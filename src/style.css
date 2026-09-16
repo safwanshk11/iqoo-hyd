@@ -2228,3 +2228,295 @@ footer > span:last-child {
     gap: 0;
   }
 }
+
+/* Parkly visual direction: a warm city curb with high-contrast wayfinding. */
+:root {
+  --canvas: #f5f0e8;
+  --canvas-deep: #e9e3d8;
+  --ink: #17201d;
+  --ink-secondary: #53605a;
+  --ink-tertiary: #7b827c;
+  --ice: #c9e4d0;
+  --azure: #ef7048;
+  --azure-ink: #bc4829;
+  --indigo-mist: #d9c7af;
+  --glass: #fffdf8cc;
+  --line: #17201d1c;
+  --shadow: 0 18px 45px #55463512, 0 3px 8px #5546350c, inset 0 1px 0 #fff;
+}
+
+body {
+  background:
+    radial-gradient(circle at 92% 4%, #ef70482b, transparent 25%),
+    radial-gradient(circle at 5% 38%, #c9e4d04d, transparent 30%),
+    var(--canvas);
+}
+
+body:before {
+  background-image:
+    linear-gradient(#7b827c0b 1px, transparent 1px),
+    linear-gradient(90deg, #7b827c0b 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.045em;
+}
+
+.nav-shell {
+  padding-top: 24px;
+}
+
+.nav {
+  background: #fffdf8e6;
+  border-color: #fffdf8;
+  box-shadow: 0 10px 30px #5546350f, inset 0 1px 0 #fff;
+}
+
+.brand {
+  color: var(--ink);
+}
+
+.beta {
+  color: var(--azure-ink);
+  border-color: #ef704866;
+  background: #ef704812;
+}
+
+.nav-active {
+  background: var(--ink);
+  color: #fff !important;
+}
+
+.icon-btn:hover {
+  background: #ef70481a;
+}
+
+.dark {
+  background: var(--ink);
+  box-shadow: 0 6px 14px #17201d24, inset 0 1px 1px #ffffff1f;
+}
+
+.dark:hover {
+  background: #2e3c35;
+}
+
+.outline {
+  border-color: #17201d2b;
+  background: #fffdf899;
+}
+
+.page-intro {
+  padding-top: 8px;
+}
+
+.page-intro h1 {
+  max-width: 680px;
+}
+
+.page-intro h1 em {
+  color: var(--azure-ink);
+}
+
+.eyebrow {
+  color: var(--azure-ink);
+}
+
+.eyebrow > span,
+.demo-dot {
+  background: var(--azure);
+}
+
+.search-island {
+  background: #fffdf8d9;
+  border-color: #fffdf8;
+  box-shadow: 0 22px 55px #55463514, inset 0 1px 0 #fff;
+}
+
+.search-fields {
+  background: #f8f4ed;
+  border-color: #e8dfd1;
+}
+
+.search-fields label,
+.search-fields .schedule-trigger {
+  border-color: #17201d1f;
+}
+
+.search-btn {
+  background: var(--azure);
+  color: #fff;
+  box-shadow: 0 8px 18px #ef70483d;
+}
+
+.search-btn:hover {
+  background: #d95b35;
+}
+
+.chip,
+.sort-trigger {
+  border-color: #cfc4b4;
+  background: #fffdf899;
+}
+
+.chip:hover,
+.sort-trigger:hover,
+.sort-trigger[aria-expanded="true"] {
+  border-color: var(--azure);
+  background: #fffdf8;
+}
+
+.parking-card {
+  border-color: #fffdf8;
+  background: #fffdf8e6;
+  box-shadow: 0 10px 26px #5546350d, inset 0 1px 0 #fff;
+}
+
+.parking-card:hover,
+.parking-card.highlighted {
+  box-shadow: 0 16px 34px #5546351c, inset 0 1px 0 #fff;
+  transform: translateY(-3px);
+}
+
+.parking-card .title-button h3 {
+  color: var(--ink);
+}
+
+.card-bottom {
+  border-color: #17201d22;
+}
+
+.availability {
+  color: #3d7456;
+}
+
+.availability > span {
+  background: #4d9b70;
+}
+
+.map-panel {
+  border-color: #fffdf8cc;
+  box-shadow: 0 18px 42px #55463518;
+}
+
+.map-caption,
+.map-bottom {
+  background: #fffdf8e6;
+  border-color: #fffdf8;
+}
+
+.map-caption-icon,
+.price-marker span {
+  background: var(--azure);
+}
+
+.price-marker span:after {
+  background: var(--azure);
+}
+
+.event-banner {
+  background: linear-gradient(105deg, #c9e4d0cc, #fffdf8d9);
+  border-color: #fffdf8;
+}
+
+.event-icon {
+  background: #fffdf8b8;
+}
+
+.badge {
+  background: #d9eddf;
+  color: #286046;
+}
+
+.toast {
+  background: #fffdf8f2;
+  border-color: #fffdf8;
+}
+
+@media (max-width: 760px) {
+  .nav-shell {
+    padding: 10px 12px 8px;
+  }
+
+  .nav {
+    padding: 11px 12px;
+  }
+
+  .nav nav {
+    top: 70px;
+    background: #fffdf8;
+    border: 1px solid #e2d7c8;
+  }
+
+  main {
+    padding-top: 12px;
+  }
+
+  .page-intro {
+    padding-bottom: 22px;
+  }
+
+  .page-intro h1 {
+    font-size: clamp(39px, 12vw, 52px);
+  }
+
+  .search-island {
+    border-radius: 20px;
+    padding: 10px;
+  }
+
+  .search-fields {
+    border-radius: 15px;
+    padding: 10px;
+  }
+
+  .results-top {
+    margin: 18px 0;
+  }
+
+  .results-heading {
+    padding: 0 2px;
+  }
+
+  .parking-card {
+    border-radius: 18px;
+    background: #fffdf8f2;
+  }
+
+  .parking-card .card-content {
+    padding-right: 5px;
+  }
+
+  .parking-card .card-bottom .btn {
+    background: var(--ink);
+    color: #fff;
+  }
+
+  .event-banner {
+    border-radius: 18px;
+    margin-bottom: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page-intro,
+  .search-island,
+  .parking-card,
+  .event-banner {
+    animation: reveal 0.55s var(--ease) both;
+  }
+
+  .search-island {
+    animation-delay: 0.06s;
+  }
+
+  .parking-card:nth-child(2) {
+    animation-delay: 0.1s;
+  }
+
+  .parking-card:nth-child(3) {
+    animation-delay: 0.16s;
+  }
+}

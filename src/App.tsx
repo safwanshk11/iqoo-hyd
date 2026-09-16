@@ -113,6 +113,26 @@ const money = (n: number) =>
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(n);
+const priceForStay = (price: number, start: string, end: string) => {
+  const hours = Math.max(
+    1,
+    Math.ceil((+new Date(end) - +new Date(start)) / 3600000),
+  );
+  if (hours <= 24 * 10)
+    return {
+      total: hours * price,
+      rate: price,
+      unit: "/ hour",
+      label: `${hours} hours`,
+    };
+  const months = Math.ceil(hours / (24 * 30));
+  return {
+    total: months * price * 24 * 30,
+    rate: price * 24 * 30,
+    unit: "/ month",
+    label: `${months} month${months === 1 ? "" : "s"}`,
+  };
+};
 const dateLabel = (s: string) =>
   new Date(s).toLocaleString("en-IN", {
     day: "numeric",
@@ -167,8 +187,7 @@ export default function App() {
     [search, setSearch] = useState("Jubilee Hills"),
     [start, setStart] = useState(localDate(initialStart)),
     [end, setEnd] = useState(localDate(new Date(+initialStart + 3 * 3600000))),
-    [vehicle, setVehicle] = useState("Sedan"),
-    [mode, setMode] = useState("Hourly / daily");
+    [vehicle, setVehicle] = useState("Sedan");
   const [spaces, setSpaces] = useState<Space[]>([]),
     [bookings, setBookings] = useState<Booking[]>([]),
     [events, setEvents] = useState<Event[]>([]),
@@ -180,14 +199,13 @@ export default function App() {
       JSON.parse(localStorage.getItem("parkly-saved") || "[]"),
     ),
     [selected, setSelected] = useState<Space | null>(null),
-    [modal, setModal] = useState(""),
+    [modal, setModal] = useState("preferences"),
     [pass, setPass] = useState<Booking | null>(null),
     [plate, setPlate] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [toast, setToast] = useState(""),
     [loading, setLoading] = useState(true),
-    [filter, setFilter] = useState("All spaces"),
     [sort, setSort] = useState("Recommended"),
     [sortOpen, setSortOpen] = useState(false),
     [mobileMap, setMobileMap] = useState(false),
@@ -195,6 +213,11 @@ export default function App() {
     [scheduleField, setScheduleField] = useState<"start" | "end" | null>(null),
     [draftDate, setDraftDate] = useState(""),
     [draftTime, setDraftTime] = useState(""),
+    [requirements, setRequirements] = useState({
+      covered: false,
+      ev: false,
+      budget: false,
+    }),
     [invite, setInvite] = useState<Event | null>(null),
     [checkId, setCheckId] = useState("");
   const [newEvent, setNewEvent] = useState({
@@ -498,9 +521,9 @@ export default function App() {
         !needle ||
         `${s.name} ${s.area} ${s.address}`.toLowerCase().includes(needle)) &&
       vehicleTypes.indexOf(vehicle) <= vehicleTypes.indexOf(s.vehicle) &&
-      (filter !== "Covered" || s.covered) &&
-      (filter !== "EV charging" || s.ev) &&
-      (filter !== "Under ₹40/hr" || s.price < 40),
+      (!requirements.covered || s.covered) &&
+      (!requirements.ev || s.ev) &&
+      (!requirements.budget || s.price < 40),
   );
   filtered = [...filtered].sort((a, b) =>
     sort === "Price: low to high"
@@ -510,10 +533,7 @@ export default function App() {
         : 0,
   );
   const center: [number, number] = areaCenters[search] || [17.433, 78.407];
-  const duration = Math.max(
-    1,
-    Math.ceil((+new Date(end) - +new Date(start)) / 3600000),
-  );
+  const pricing = (price: number) => priceForStay(price, start, end);
   const field = (label: string, el: React.ReactNode) => (
     <label className="field">
       <span>{label}</span>
@@ -577,12 +597,6 @@ export default function App() {
         id="main"
         className={page === "discover" && mobileMap ? "map-active" : ""}
       >
-        <div className="demo-bar">
-          <span className="demo-dot" /> Hyderabad preview{" "}
-          <span className="demo-note">
-            · Demo spaces. No real payments or parking rights.
-          </span>
-        </div>
         {(page === "discover" || page === "saved") && (
           <>
             <section className="page-intro">
@@ -622,46 +636,6 @@ export default function App() {
             </section>
             {page === "discover" && (
               <section className="search-island glass">
-                <div className="search-top">
-                  <div className="segmented">
-                    {["Hourly / daily", "Monthly", "Airport"].map((m) => (
-                      <button
-                        key={m}
-                        className={mode === m ? "selected" : ""}
-                        onClick={() => {
-                          setMode(m);
-                          if (m === "Monthly") {
-                            setEnd(
-                              localDate(
-                                new Date(+new Date(start) + 30 * 86400000),
-                              ),
-                            );
-                          }
-                          if (m === "Hourly / daily") {
-                            setEnd(
-                              localDate(
-                                new Date(+new Date(start) + 3 * 3600000),
-                              ),
-                            );
-                          }
-                          if (m === "Airport") {
-                            setQuery("Shamshabad");
-                            setEnd(
-                              localDate(
-                                new Date(+new Date(start) + 3 * 3600000),
-                              ),
-                            );
-                          }
-                        }}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                  <span className="quiet">
-                    <ShieldCheck size={14} /> Reserve before you arrive
-                  </span>
-                </div>
                 <form
                   className="search-fields"
                   onSubmit={(e) => {
@@ -720,45 +694,9 @@ export default function App() {
                     <ArrowRight size={18} />
                   </button>
                 </form>
-                {mode === "Monthly" && (
-                  <p className="mode-note">
-                    30-day parking, calculated at each space’s hourly rate.
-                    Monthly discounts are not available in this preview.
-                  </p>
-                )}
               </section>
             )}
             <div className="results-top">
-              <div className="filter-row">
-                {["All spaces", "Covered", "EV charging", "Under ₹40/hr"].map(
-                  (f) => (
-                    <button
-                      className={"chip " + (filter === f ? "on" : "")}
-                      key={f}
-                      onClick={() => setFilter(f)}
-                    >
-                      {f === "Covered" ? (
-                        <House size={15} />
-                      ) : f === "EV charging" ? (
-                        <Zap size={15} />
-                      ) : null}
-                      {f}
-                    </button>
-                  ),
-                )}
-                <label className="chip vehicle-chip">
-                  <Car size={16} />
-                  <select
-                    aria-label="Vehicle size"
-                    value={vehicle}
-                    onChange={(e) => setVehicle(e.target.value)}
-                  >
-                    {vehicleTypes.map((v) => (
-                      <option key={v}>{v}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
               <button
                 className="chip map-switch"
                 onClick={() => {
@@ -850,7 +788,6 @@ export default function App() {
                       onClick={() => {
                         setQuery("");
                         setSearch("");
-                        setFilter("All spaces");
                         setVehicle("Bike");
                       }}
                     >
@@ -858,7 +795,7 @@ export default function App() {
                     </button>
                   </div>
                 ) : (
-                  filtered.map((s, i) => (
+                  filtered.map((s) => (
                     <article
                       key={s.id}
                       className={
@@ -866,20 +803,6 @@ export default function App() {
                         (selected?.id === s.id ? "highlighted" : "")
                       }
                     >
-                      <div className={"space-art art-" + (i % 3)}>
-                        <ParkingCircle size={34} />
-                        <span>{s.kind}</span>
-                        <div className="art-meta">
-                          <span>{s.covered ? "Covered" : "Open air"}</span>
-                          <span>
-                            {s.ev ? (
-                              <Zap size={14} />
-                            ) : (
-                              <ShieldCheck size={14} />
-                            )}
-                          </span>
-                        </div>
-                      </div>
                       <div className="card-content">
                         <div className="card-top">
                           <span className="eyebrow">{s.area}</span>
@@ -923,11 +846,11 @@ export default function App() {
                         <div className="card-bottom">
                           <div>
                             <strong>
-                              {money(s.price)}
-                              <small> / hour</small>
+                              {money(pricing(s.price).rate)}
+                              <small>{pricing(s.price).unit}</small>
                             </strong>
                             <span>
-                              {money(s.price * duration)} for {duration} hours
+                              {money(pricing(s.price).total)} for {pricing(s.price).label}
                             </span>
                           </div>
                           <button
@@ -1527,6 +1450,8 @@ export default function App() {
                     ? "Create event"
                     : modal === "listing"
                       ? "List a space"
+                      : modal === "preferences"
+                        ? "Parking preferences"
                       : "Parking dialog"
             }
             className={"modal glass " + (modal === "pass" ? "pass-modal" : "")}
@@ -1539,6 +1464,75 @@ export default function App() {
             >
               <X size={20} />
             </button>
+            {modal === "preferences" && (
+              <>
+                <span className="eyebrow">MAKE PARKING FIT</span>
+                <h2>What do you need today?</h2>
+                <p>We’ll use these preferences to show compatible spaces.</p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    setModal("");
+                  }}
+                >
+                  {field(
+                    "Vehicle type",
+                    <select
+                      value={vehicle}
+                      onChange={(e) => setVehicle(e.target.value)}
+                    >
+                      {vehicleTypes.map((v) => (
+                        <option key={v}>{v}</option>
+                      ))}
+                    </select>,
+                  )}
+                  <div className="checks">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={requirements.covered}
+                        onChange={(e) =>
+                          setRequirements({
+                            ...requirements,
+                            covered: e.target.checked,
+                          })
+                        }
+                      />
+                      Covered parking
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={requirements.ev}
+                        onChange={(e) =>
+                          setRequirements({
+                            ...requirements,
+                            ev: e.target.checked,
+                          })
+                        }
+                      />
+                      EV charging
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={requirements.budget}
+                        onChange={(e) =>
+                          setRequirements({
+                            ...requirements,
+                            budget: e.target.checked,
+                          })
+                        }
+                      />
+                      Under ₹40 per hour
+                    </label>
+                  </div>
+                  <button className="btn dark wide" type="submit">
+                    Find my spaces <ArrowRight size={17} />
+                  </button>
+                </form>
+              </>
+            )}
             {modal === "detail" && selected && (
               <>
                 <span className="eyebrow">
@@ -1578,8 +1572,8 @@ export default function App() {
                     {dateLabel(start)} → {dateLabel(end)}
                   </span>
                   <strong>
-                    {money(selected.price * duration)}{" "}
-                    <small>total · {duration} hours</small>
+                    {money(pricing(selected.price).total)}{" "}
+                    <small>total · {pricing(selected.price).label}</small>
                   </strong>
                 </div>
                 <form
