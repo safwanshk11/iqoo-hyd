@@ -1,8 +1,17 @@
+import "dotenv/config";
 import express from "express";
 import { mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { createStore } from "./store.js";
+
+if (process.env.DATABASE_URL) {
+  await import("./neon-index.js");
+} else {
+await startLocal();
+}
+
+async function startLocal() {
 mkdirSync("data", { recursive: true });
 const { db, available, book, createEvent } = createStore("data/parkly.sqlite");
 const app = express();
@@ -233,3 +242,4 @@ app.get("*", (req, res) => res.sendFile(resolve("dist/index.html")));
 app.listen(3001, "127.0.0.1", () =>
   console.log("Parkly API: http://127.0.0.1:3001"),
 );
+}
