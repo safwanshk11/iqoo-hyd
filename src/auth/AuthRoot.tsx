@@ -1,3 +1,4 @@
+import { NavigationBar } from "../shared/NavigationBar";
 import { useEffect, useState } from "react";
 import { ArrowRight, Car, House, LogOut } from "lucide-react";
 import { api } from "../shared/api";
@@ -218,7 +219,10 @@ export function AuthRoot() {
     );
   const account = (
     <div className="account-bar">
-      <span>{user.name}</span>
+      <div className="account-identity">
+        <strong>{user.name}</strong>
+        <span>{user.email}</span>
+      </div>
       <label>
         <span className="sr-only">Account mode</span>
         <select
@@ -235,18 +239,31 @@ export function AuthRoot() {
         </select>
       </label>
       <button onClick={logout} disabled={busy} aria-label="Sign out">
-        <LogOut size={16} />
+        <LogOut size={18} />
+        <span>Sign out</span>
       </button>
       {error && <span role="alert">{error}</span>}
     </div>
   );
   return (
     <>
-      {account}
       {mode === "admin" ? (
-        <Admin />
+        <>
+          <NavigationBar
+            mode="admin"
+            active="admin"
+            onNavigate={() => window.scrollTo(0, 0)}
+            account={account}
+          />
+          <Admin />
+        </>
       ) : (
-        <App key={user.id + mode} user={user} mode={mode} />
+        <App
+          key={user.id + mode}
+          user={user}
+          mode={mode}
+          accountControls={account}
+        />
       )}
     </>
   );

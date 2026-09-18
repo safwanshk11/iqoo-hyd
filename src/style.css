@@ -3891,3 +3891,393 @@ h3 {
   padding-top: 32px;
   padding-bottom: 32px;
 }
+
+/* One continuous navigation surface, with account controls in its drawer. */
+.nav.expandable-nav {
+  display: block;
+  overflow: hidden;
+  padding: 0;
+}
+.expandable-nav .nav-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+}
+.expandable-nav .nav-main .menu {
+  display: flex;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+}
+.expandable-nav .nav-main .nav-right {
+  margin-left: auto;
+}
+.nav.expandable-nav .desktop-links {
+  position: static;
+  display: flex;
+  padding: 0;
+  margin: 0 auto;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.nav-drawer {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 280ms ease,
+    opacity 200ms ease,
+    visibility 280ms;
+}
+.is-open .nav-drawer {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+}
+.nav-drawer-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+.nav-drawer-content {
+  padding: 8px 16px 18px;
+  border-top: 1px solid #ffffff24;
+  transform: translateY(-10px);
+  transition: transform 280ms ease;
+}
+.is-open .nav-drawer-content {
+  transform: translateY(0);
+}
+.nav.expandable-nav .drawer-links {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+.nav.expandable-nav nav button {
+  font-size: 16px;
+  text-align: left;
+  min-height: 46px;
+  padding: 12px 14px;
+}
+.nav .account-bar {
+  padding: 16px 0 0;
+  margin-top: 12px;
+  border-top: 1px solid #ffffff24;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 14px;
+  font-size: 15px;
+}
+.account-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.account-identity strong {
+  font-size: 17px;
+}
+.account-identity > span {
+  color: #cbd5dc;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.nav .account-bar select {
+  font-size: 16px;
+  min-height: 44px;
+  padding: 8px 12px;
+  color: #102a43;
+  border: 0;
+}
+.nav .account-bar > button {
+  display: inline-flex;
+  gap: 9px;
+  padding: 9px 14px;
+  min-height: 44px;
+  margin-left: auto;
+  color: white;
+  border: 1px solid #ffffff30;
+  border-radius: 6px;
+}
+.nav .account-bar > [role="alert"] {
+  flex-basis: 100%;
+  color: #ffe0c7;
+}
+@media (min-width: 761px) {
+  .nav.expandable-nav .drawer-links {
+    display: none;
+  }
+  .nav .account-bar {
+    margin-top: 0;
+    border-top: 0;
+    padding-top: 10px;
+  }
+  .account-identity {
+    flex-basis: auto;
+  }
+}
+@media (max-width: 760px) {
+  .nav.expandable-nav .desktop-links {
+    display: none;
+  }
+  .expandable-nav .nav-main {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .nav-drawer-content {
+    padding: 8px 12px 16px;
+  }
+  .expandable-nav .nav-right {
+    gap: 8px;
+  }
+  .nav-right .btn.small {
+    font-size: 14px;
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+}
+
+/* Readable text sizes on phones, including secondary listing details. */
+body {
+  font-size: 17px;
+}
+.page-intro p,
+.account-card p,
+.onboarding-slide p,
+.modal > p {
+  font-size: 17px;
+  line-height: 1.55;
+}
+.eyebrow,
+.card-top .eyebrow {
+  font-size: 11px;
+}
+.search-fields small {
+  font-size: 11px;
+  line-height: 1.3;
+}
+.search-fields input {
+  font-size: 17px;
+  height: 28px;
+}
+.schedule-trigger strong {
+  font-size: 14px;
+}
+.btn,
+.text-btn {
+  font-size: 16px;
+}
+.btn.small,
+.chip,
+.sort-trigger,
+.sort-menu button {
+  font-size: 14px;
+}
+.sort-trigger {
+  min-height: 44px;
+}
+.results-heading p,
+.address,
+.features,
+.distance-label {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.results-heading h2 {
+  font-size: 27px;
+}
+.card-title,
+.title-button h3 {
+  font-size: 23px;
+  line-height: 1.25;
+}
+.card-bottom strong {
+  font-size: 27px;
+}
+.card-bottom strong small,
+.card-bottom > div > span,
+.availability,
+.card-unavailable {
+  font-size: 13px;
+}
+.address {
+  align-items: flex-start;
+}
+.address svg,
+.features svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.features {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.card-content {
+  padding: 10px 12px;
+}
+.field > span,
+.field > label,
+.checks label,
+.onboarding-checks label,
+.fine,
+.account-toggle {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.field input,
+.field select,
+.field textarea,
+.schedule-inputs input {
+  font-size: 16px;
+}
+.field input,
+.field select {
+  min-height: 46px;
+}
+.map-caption-copy small,
+.map-count,
+.map-space-copy small,
+.map-space-action small {
+  font-size: 12px;
+}
+.map-space-copy strong {
+  font-size: 17px;
+}
+.map-space-action .btn {
+  font-size: 14px;
+}
+footer {
+  font-size: 14px;
+}
+.host-tabs button {
+  font-size: 15px;
+}
+.host-summary span,
+.owner-card p,
+.attendant p,
+.blocked-period,
+.account-role label,
+.account-role legend {
+  font-size: 15px;
+}
+table td {
+  font-size: 15px;
+}
+table th {
+  font-size: 13px;
+}
+.onboarding-slide h1 {
+  font-size: clamp(40px, 9vw, 60px);
+}
+.onboarding-checks {
+  gap: 8px;
+}
+.onboarding-checks label {
+  padding: 10px 12px;
+  min-height: 44px;
+}
+
+/* Local distance search; no external geocoder or location upload. */
+.search-fields .destination-field {
+  flex: 1.5;
+  min-width: 0;
+}
+.search-fields .destination-field .destination {
+  border: 0;
+  padding: 0;
+  width: 100%;
+}
+.current-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--azure-ink);
+  font-size: 14px;
+  min-height: 36px;
+  padding: 6px 0 0;
+  margin-left: 33px;
+  text-align: left;
+}
+.current-location:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.distance-label {
+  color: var(--azure-ink);
+  margin: -5px 0 10px;
+}
+@media (max-width: 1050px) {
+  .search-fields .destination-field {
+    flex-basis: 32%;
+  }
+}
+@media (max-width: 760px) {
+  .search-fields .destination-field {
+    flex-basis: 100%;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 10px;
+  }
+  .search-fields .destination-field .destination {
+    padding-bottom: 0;
+  }
+  .search-fields .schedule-trigger {
+    min-width: 0;
+  }
+  .schedule-trigger strong {
+    white-space: normal;
+    line-height: 1.4;
+  }
+  .search-fields .schedule-trigger > svg:last-child {
+    display: none;
+  }
+  .results-heading {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .results-heading > .sort {
+    margin-left: auto;
+  }
+  .parking-card .card-content {
+    padding: 12px;
+  }
+}
+
+/* A soft 24-spoke Ashoka Chakra in the centre of the tricolour canvas. */
+.onboarding-backdrop::before,
+.onboarding-backdrop::after {
+  display: none;
+}
+.chakra-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(110vw, 750px);
+  height: auto;
+  color: #123d75;
+  opacity: 0.22;
+  filter: blur(2.5px);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.onboarding-card {
+  background: #fffdf8e6;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-drawer,
+  .nav-drawer-content {
+    transition: none;
+  }
+}

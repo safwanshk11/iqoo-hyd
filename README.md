@@ -24,7 +24,7 @@ npm run test:neon
 
 ## Accounts and permissions
 
-Create an account with email, name and a password of at least 12 characters. Every account can use the Driver workspace. Choosing Host at registration, or selecting **Become a host** in the account menu, adds the Host role. The account menu switches workspaces; this does not change server permissions.
+Create an account with email, name and a password of at least 12 characters. Every account can use the Driver workspace. Choosing Host at registration, or selecting **Become a host** in the account menu, adds the Host role. The account menu lives inside the expanding navigation bar and switches workspaces; this does not change server permissions.
 
 | Role | Access |
 |---|---|
@@ -76,7 +76,7 @@ Migrations add tables and columns without deleting legacy inventory or bookings.
 
 ## Features and current limits
 
-Driver requirements appear as one form on app launch. Arrival/leaving use date/time popouts. Discovery has list/map modes, rates, availability, requirements editing and a custom sort menu. Drivers can reserve, cancel, navigate to the entrance, and download/share PDF QR passes. Hosts can scan or manually verify a pass online during its arrival window. Event organizers reserve shared inventory and distribute guest invitation links.
+Driver requirements appear as one form on app launch, over a soft tricolour canvas and 24-spoke Chakra. Arrival/leaving use date/time popouts. Discovery has list/map modes, rates, availability, requirements editing and a custom sort menu. Use current location finds inventory within 10 km and ranks it by distance; coordinates stay on the device for matching. Android asks for location access only when requested. Drivers can reserve, cancel, navigate to the entrance, and download/share PDF QR passes. Hosts can scan or manually verify a pass online during its arrival window. Event organizers reserve shared inventory and distribute guest invitation links.
 
 The owner listing flow includes the open-source `Xenova/mobilevit-xx-small` model through Transformers.js and CPU/WASM. The model runs locally; photos are not uploaded. General scene labels help review a listing but do not establish dimensions or parking safety.
 

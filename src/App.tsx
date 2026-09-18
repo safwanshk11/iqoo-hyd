@@ -1,3 +1,6 @@
+import { NavigationBar } from "./shared/NavigationBar";
+import { Chakra } from "./shared/Chakra";
+import { distanceKm, nearbyRadiusKm } from "./shared/location.mjs";
 import { Availability, type Block } from "./host/Availability";
 import { api } from "./shared/api";
 import type { User } from "./auth/AuthRoot";
@@ -150,23 +153,14 @@ function Recenter({
   }, [center[0], center[1], visible]);
   return null;
 }
-function RecenterOnLocation({
-  location,
-}: {
-  location: [number, number] | null;
-}) {
-  const map = useMap();
-  useEffect(() => {
-    if (location) map.setView(location, 15, { animate: true });
-  }, [location, map]);
-  return null;
-}
 export default function App({
   user,
   mode,
+  accountControls,
 }: {
   user: User;
   mode: "driver" | "host";
+  accountControls: React.ReactNode;
 }) {
   const [hostTab, setHostTab] = useState("dashboard");
   const [editingSpace, setEditingSpace] = useState<string | null>(null);
@@ -186,7 +180,6 @@ export default function App({
             "/app/saved": "saved",
           }[location.pathname] || "discover",
     ),
-    [menu, setMenu] = useState(false),
     [query, setQuery] = useState("Jubilee Hills"),
     [search, setSearch] = useState("Jubilee Hills"),
     [start, setStart] = useState(localDate(initialStart)),
@@ -220,6 +213,7 @@ export default function App({
     [mobileMap, setMobileMap] = useState(false),
     [userLocation, setUserLocation] = useState<[number, number] | null>(null),
     [locating, setLocating] = useState(false),
+    [nearby, setNearby] = useState(false),
     [mapFocus, setMapFocus] = useState<Space | null>(null),
     [scheduleField, setScheduleField] = useState<"start" | "end" | null>(null),
     [draftDate, setDraftDate] = useState(""),
@@ -269,7 +263,6 @@ export default function App({
         ? "/host/dashboard"
         : "/app/" + (p === "discover" ? "search" : p),
     );
-    setMenu(false);
     setSortOpen(false);
     setError("");
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -306,11 +299,20 @@ export default function App({
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         setUserLocation([coords.latitude, coords.longitude]);
+        setNearby(true);
+        setQuery("Current location");
+        setSearch("");
+        setMapFocus(null);
+        setError("");
         setLocating(false);
       },
-      () => {
+      (failure) => {
         setLocating(false);
-        setError("Location access was blocked. You can still browse the map.");
+        setError(
+          failure.code === 1
+            ? "Location access is blocked. Allow it in your device settings or enter a destination."
+            : "Couldn’t get your location. Try again or enter a destination.",
+        );
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
@@ -696,8 +698,13 @@ export default function App({
     (s) =>
       (page !== "saved" || saved.includes(s.id)) &&
       (page === "saved" ||
+        nearby ||
         !needle ||
         `${s.name} ${s.area} ${s.address}`.toLowerCase().includes(needle)) &&
+      (page === "saved" ||
+        !nearby ||
+        !userLocation ||
+        distanceKm(userLocation, [s.lat, s.lng]) <= nearbyRadiusKm) &&
       vehicleTypes.indexOf(vehicle) <= vehicleTypes.indexOf(s.vehicle) &&
       (!requirements.covered || s.covered) &&
       (!requirements.ev || s.ev) &&
@@ -708,9 +715,15 @@ export default function App({
       ? a.price - b.price
       : sort === "Most availability"
         ? b.available - a.available
-        : 0,
+        : nearby && userLocation
+          ? distanceKm(userLocation, [a.lat, a.lng]) -
+            distanceKm(userLocation, [b.lat, b.lng])
+          : 0,
   );
-  const center: [number, number] = areaCenters[search] || [17.433, 78.407];
+  const center: [number, number] =
+    nearby && userLocation
+      ? userLocation
+      : areaCenters[search] || [17.433, 78.407];
   const pricing = (space: Space) =>
     space.quote || {
       total: 0,
@@ -729,69 +742,13 @@ export default function App({
       <a className="skip" href="#main">
         Skip to content
       </a>
-      <header
-        className={
-          "nav-shell " +
-          (page === "discover" && mobileMap ? "nav-map-hidden" : "")
-        }
-      >
-        <div className="nav glass">
-          <button
-            className="brand"
-            onClick={() => navigate(mode === "host" ? "host" : "discover")}
-          >
-            Park<span className="serif">ly</span>
-            <span className="beta">HYD</span>
-          </button>
-          <nav className={menu ? "open" : ""} aria-label="Main navigation">
-            {(mode === "host"
-              ? [["host", "Host dashboard"]]
-              : [
-                  ["discover", "Find parking"],
-                  ["events", "Event parking"],
-                  ["saved", "Saved spaces"],
-                ]
-            ).map(([p, n]) => (
-              <button
-                key={p}
-                className={page === p ? "nav-active" : ""}
-                onClick={() => navigate(p)}
-              >
-                {n}
-              </button>
-            ))}
-          </nav>
-          <div className="nav-right">
-            {mode === "driver" && (
-              <>
-                <button
-                  className={
-                    "icon-btn saved-nav " + (page === "saved" ? "active" : "")
-                  }
-                  onClick={() => navigate("saved")}
-                  aria-label="Saved spaces"
-                >
-                  <Bookmark size={18} />
-                </button>
-                <button
-                  className="btn dark small"
-                  onClick={() => navigate("bookings")}
-                >
-                  <Ticket size={16} />
-                  <span>My bookings</span>
-                </button>
-              </>
-            )}
-            <button
-              className="icon-btn menu"
-              aria-label="Toggle navigation"
-              onClick={() => setMenu(!menu)}
-            >
-              <Menu size={22} />
-            </button>
-          </div>
-        </div>
-      </header>
+      <NavigationBar
+        mode={mode}
+        active={page}
+        onNavigate={navigate}
+        account={accountControls}
+        mapHidden={page === "discover" && mobileMap}
+      />
       <main
         id="main"
         className={page === "discover" && mobileMap ? "map-active" : ""}
@@ -839,22 +796,42 @@ export default function App({
                   className="search-fields"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    setSearch(query);
+                    setSearch(nearby ? "" : query);
                     refresh();
                   }}
                 >
-                  <label className="destination">
-                    <MapPin size={21} />
-                    <span>
-                      <small>WHERE ARE YOU HEADED?</small>
-                      <input
-                        aria-label="Destination"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Place, neighbourhood or venue"
-                      />
-                    </span>
-                  </label>
+                  <div className="destination-field">
+                    <label className="destination">
+                      <MapPin size={21} />
+                      <span>
+                        <small>WHERE ARE YOU HEADED?</small>
+                        <input
+                          aria-label="Destination"
+                          value={query}
+                          onChange={(e) => {
+                            setQuery(e.target.value);
+                            setNearby(false);
+                          }}
+                          placeholder="Place, neighbourhood or venue"
+                        />
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      className="current-location"
+                      disabled={locating}
+                      onClick={locateUser}
+                    >
+                      {locating ? (
+                        <LoaderCircle size={16} className="spin" />
+                      ) : (
+                        <Navigation size={16} />
+                      )}
+                      {locating
+                        ? "Finding your location…"
+                        : "Use current location"}
+                    </button>
+                  </div>
                   <button
                     type="button"
                     className="schedule-trigger"
@@ -915,7 +892,9 @@ export default function App({
                     <h2>
                       {page === "saved"
                         ? "Saved spaces"
-                        : search || "Across Hyderabad"}
+                        : nearby
+                          ? "Near you"
+                          : search || "Across Hyderabad"}
                     </h2>
                     <p>
                       {loading
@@ -980,11 +959,20 @@ export default function App({
                 ) : filtered.length === 0 ? (
                   <div className="empty glass">
                     <ParkingCircle size={36} />
-                    <h3>No spaces match just yet</h3>
-                    <p>Try a nearby neighbourhood or a different filter.</p>
+                    <h3>
+                      {nearby
+                        ? "No matching spaces nearby"
+                        : "No spaces match just yet"}
+                    </h3>
+                    <p>
+                      {nearby
+                        ? "No matching parking within 10 km. Try another destination or adjust your requirements."
+                        : "Try a nearby neighbourhood or different requirements."}
+                    </p>
                     <button
                       className="btn dark"
                       onClick={() => {
+                        setNearby(false);
                         setQuery("");
                         setSearch("");
                         setVehicle("Bike");
@@ -1054,6 +1042,14 @@ export default function App({
                           <MapPin size={13} />
                           {s.address}
                         </p>
+                        {nearby && userLocation && (
+                          <p className="distance-label">
+                            {distanceKm(userLocation, [s.lat, s.lng]).toFixed(
+                              1,
+                            )}{" "}
+                            km away
+                          </p>
+                        )}
                         <div className="features">
                           <span>
                             <Car size={14} /> Up to {s.vehicle}
@@ -1099,7 +1095,9 @@ export default function App({
                   </span>
                   <span className="map-caption-copy">
                     <small>SEARCH AREA</small>
-                    <strong>{search || "Hyderabad"}</strong>
+                    <strong>
+                      {nearby ? "Near you" : search || "Hyderabad"}
+                    </strong>
                   </span>
                   <span className="map-count">{filtered.length} spaces</span>
                   <button
@@ -1121,7 +1119,7 @@ export default function App({
                   scrollWheelZoom={false}
                 >
                   <Recenter center={center} visible={mobileMap} />
-                  <RecenterOnLocation location={userLocation} />
+
                   <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -1203,25 +1201,27 @@ export default function App({
                 )}
               </div>
             </section>
-            <section className="event-banner glass">
-              <div className="event-icon">
-                <Users size={26} />
-              </div>
-              <div>
-                <span className="eyebrow">THE WHOLE GUEST LIST. SORTED.</span>
-                <h3>
-                  A place for everyone <em>you invite.</em>
-                </h3>
-                <p>
-                  Reserve nearby spaces, share one link, and let your guests
-                  arrive easy.
-                </p>
-              </div>
-              <button className="btn dark" onClick={() => navigate("events")}>
-                Plan event parking
-                <ArrowUpRight size={17} />
-              </button>
-            </section>
+            {page === "discover" && (
+              <section className="event-banner glass">
+                <div className="event-icon">
+                  <Users size={26} />
+                </div>
+                <div>
+                  <span className="eyebrow">THE WHOLE GUEST LIST. SORTED.</span>
+                  <h3>
+                    A place for everyone <em>you invite.</em>
+                  </h3>
+                  <p>
+                    Reserve nearby spaces, share one link, and let your guests
+                    arrive easy.
+                  </p>
+                </div>
+                <button className="btn dark" onClick={() => navigate("events")}>
+                  Plan event parking
+                  <ArrowUpRight size={17} />
+                </button>
+              </section>
+            )}
           </>
         )}
         {page === "bookings" && (
@@ -1740,7 +1740,9 @@ export default function App({
       )}
       {onboarding && (
         <div className="onboarding-shell" role="presentation">
-          <div className="onboarding-backdrop" />
+          <div className="onboarding-backdrop">
+            <Chakra />
+          </div>
           <section
             className="onboarding-card"
             role="dialog"
