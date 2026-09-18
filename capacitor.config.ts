@@ -4,6 +4,7 @@ const config: CapacitorConfig = {
   appId: "com.safwanshk.parkly",
   appName: "Parkly",
   webDir: "dist",
+  plugins: { CapacitorHttp: { enabled: true } },
   server: {
     androidScheme: "http",
     cleartext: true,

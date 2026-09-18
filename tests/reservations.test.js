@@ -83,8 +83,8 @@ test("stays over ten days use the monthly rate", () => {
     session: "monthly",
     plate: "TS09MON123",
   });
-  assert.equal(tenDays.total, 40 * 24 * 10);
-  assert.equal(monthly.total, 40 * 24 * 30);
+  assert.equal(tenDays.total, 40 * 8 * 10);
+  assert.equal(monthly.total, 40 * 120);
   s.db.close();
 });
 test("incompatible vehicles rejected and event allocator skips incompatible locations", () => {

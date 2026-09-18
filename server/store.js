@@ -1,3 +1,4 @@
+import { quote } from "./pricing.js";
 import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 export function createStore(path = ":memory:") {
@@ -7,9 +8,12 @@ export function createStore(path = ":memory:") {
   db.exec(
     `CREATE TABLE IF NOT EXISTS spaces(id TEXT PRIMARY KEY,owner TEXT NOT NULL,name TEXT NOT NULL,area TEXT NOT NULL,address TEXT NOT NULL,lat REAL,lng REAL,price INTEGER,capacity INTEGER,vehicle TEXT,covered INTEGER,ev INTEGER,instructions TEXT,kind TEXT); CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,owner TEXT,name TEXT,venue TEXT,start TEXT,end TEXT,quantity INTEGER); CREATE TABLE IF NOT EXISTS allocations(id TEXT PRIMARY KEY,space_id TEXT REFERENCES spaces(id),event_id TEXT REFERENCES events(id),start TEXT,end TEXT); CREATE TABLE IF NOT EXISTS bookings(id TEXT PRIMARY KEY,session TEXT,space_id TEXT REFERENCES spaces(id),event_id TEXT REFERENCES events(id),allocation_id TEXT REFERENCES allocations(id),start TEXT,end TEXT,vehicle TEXT,plate TEXT,status TEXT,total INTEGER);`,
   );
+  db.exec(
+    "CREATE TABLE IF NOT EXISTS space_blocks(id TEXT PRIMARY KEY,space_id TEXT NOT NULL REFERENCES spaces(id),start_time TEXT NOT NULL,end_time TEXT NOT NULL)",
+  );
   if (!db.prepare("SELECT id FROM spaces LIMIT 1").get()) {
     const insert = db.prepare(
-      "INSERT INTO spaces VALUES (@id,@owner,@name,@area,@address,@lat,@lng,@price,@capacity,@vehicle,@covered,@ev,@instructions,@kind)",
+      "INSERT INTO spaces(id,owner,name,area,address,lat,lng,price,capacity,vehicle,covered,ev,instructions,kind) VALUES (@id,@owner,@name,@area,@address,@lat,@lng,@price,@capacity,@vehicle,@covered,@ev,@instructions,@kind)",
     );
     [
       [
@@ -153,8 +157,16 @@ export function createStore(path = ":memory:") {
   }
   const overlap = "start < @end AND end > @start";
   function available(spaceId, start, end) {
-    const s = db.prepare("SELECT capacity FROM spaces WHERE id=?").get(spaceId);
-    if (!s) return 0;
+    const s = db.prepare("SELECT * FROM spaces WHERE id=?").get(spaceId);
+    if (!s || (s.status && s.status !== "active")) return 0;
+    if (
+      db
+        .prepare(
+          "SELECT id FROM space_blocks WHERE space_id=? AND start_time < ? AND end_time > ?",
+        )
+        .get(spaceId, end, start)
+    )
+      return 0;
     const a = db
       .prepare(
         `SELECT count(*) n FROM allocations WHERE space_id=@id AND ${overlap}`,
@@ -170,14 +182,6 @@ export function createStore(path = ":memory:") {
   const fits = (space, vehicle) =>
     ["Bike", "Hatchback", "Sedan", "SUV"].indexOf(vehicle) <=
     ["Bike", "Hatchback", "Sedan", "SUV"].indexOf(space.vehicle);
-  const priceForStay = (price, start, end) => {
-    const hours = Math.max(
-      1,
-      Math.ceil((Date.parse(end) - Date.parse(start)) / 3600000),
-    );
-    if (hours <= 24 * 10) return hours * price;
-    return Math.ceil(hours / (24 * 30)) * price * 24 * 30;
-  };
   const book = db.transaction(
     ({ session, spaceId, eventId, start, end, vehicle, plate }) => {
       let allocation = null,
@@ -216,7 +220,11 @@ export function createStore(path = ":memory:") {
         if (!space) throw Error("No compatible spaces remain for this event.");
       } else {
         space = db.prepare("SELECT * FROM spaces WHERE id=?").get(spaceId);
-        if (!space || !fits(space, vehicle))
+        if (
+          !space ||
+          (space.status && space.status !== "active") ||
+          !fits(space, vehicle)
+        )
           throw Error("This space does not fit your vehicle.");
         if (!available(spaceId, start, end))
           throw Error("This space was just booked. Please choose another.");
@@ -239,9 +247,7 @@ export function createStore(path = ":memory:") {
         vehicle,
         plate,
         status: "confirmed",
-        total: eventId
-          ? 0
-          : priceForStay(space.price, start, end),
+        total: eventId ? 0 : quote(space, start, end).total,
       };
       db.prepare(
         "INSERT INTO bookings VALUES (@id,@session,@space_id,@event_id,@allocation_id,@start,@end,@vehicle,@plate,@status,@total)",

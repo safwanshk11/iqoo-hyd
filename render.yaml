@@ -11,3 +11,5 @@ services:
         sync: false
       - key: NODE_VERSION
         value: 20
+      - key: NODE_ENV
+        value: production

@@ -1,3 +1,6 @@
+import { Availability, type Block } from "./host/Availability";
+import { api } from "./shared/api";
+import type { User } from "./auth/AuthRoot";
 import React, { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -51,6 +54,10 @@ type Space = {
   lat: number;
   lng: number;
   price: number;
+  daily_rate: number;
+  monthly_rate: number;
+  status: string;
+  quote?: { total: number; rate: number; unit: string; label: string };
   capacity: number;
   available: number;
   vehicle: string;
@@ -83,31 +90,6 @@ type Event = {
   quantity: number;
   claimed: number;
 };
-let session = localStorage.getItem("parkly-session");
-if (!session) {
-  session = crypto.randomUUID();
-  localStorage.setItem("parkly-session", session);
-}
-async function api(path: string, body?: unknown) {
-  const apiRoot = "https://parkly-api-pslb.onrender.com/api";
-  const r = await fetch(apiRoot + path, {
-    method: body ? "POST" : "GET",
-    headers: { "Content-Type": "application/json", "X-Session": session! },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const responseText = await r.text();
-  let data: any = {};
-  if (responseText) {
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      throw Error("The server returned an invalid response. Please try again.");
-    }
-  }
-  if (!r.ok)
-    throw Error(data.error || "Something went wrong. Please try again.");
-  return data;
-}
 const localDate = (d: Date) =>
   new Date(d.getTime() - d.getTimezoneOffset() * 60000)
     .toISOString()
@@ -121,26 +103,6 @@ const money = (n: number) =>
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(n);
-const priceForStay = (price: number, start: string, end: string) => {
-  const hours = Math.max(
-    1,
-    Math.ceil((+new Date(end) - +new Date(start)) / 3600000),
-  );
-  if (hours <= 24 * 10)
-    return {
-      total: hours * price,
-      rate: price,
-      unit: "/ hour",
-      label: `${hours} hours`,
-    };
-  const months = Math.ceil(hours / (24 * 30));
-  return {
-    total: months * price * 24 * 30,
-    rate: price * 24 * 30,
-    unit: "/ month",
-    label: `${months} month${months === 1 ? "" : "s"}`,
-  };
-};
 const dateLabel = (s: string) =>
   new Date(s).toLocaleString("en-IN", {
     day: "numeric",
@@ -199,17 +161,31 @@ function RecenterOnLocation({
   }, [location, map]);
   return null;
 }
-export default function App() {
+export default function App({
+  user,
+  mode,
+}: {
+  user: User;
+  mode: "driver" | "host";
+}) {
+  const [hostTab, setHostTab] = useState("dashboard");
+  const [editingSpace, setEditingSpace] = useState<string | null>(null);
   const scanVideoRef = React.useRef<HTMLVideoElement>(null);
   const [onboarding, setOnboarding] = useState(
     () =>
-      !new URLSearchParams(location.search).get("invite"),
+      mode === "driver" && !new URLSearchParams(location.search).get("invite"),
   );
-  const [onboardingStep, setOnboardingStep] = useState(0),
-    [onboardingDirection, setOnboardingDirection] = useState<"next" | "back">(
-      "next",
-    );
-  const [page, setPage] = useState("discover"),
+  const onboardingStep = 2,
+    onboardingDirection = "next";
+  const [page, setPage] = useState(
+      mode === "host"
+        ? "host"
+        : {
+            "/app/bookings": "bookings",
+            "/app/events": "events",
+            "/app/saved": "saved",
+          }[location.pathname] || "discover",
+    ),
     [menu, setMenu] = useState(false),
     [query, setQuery] = useState("Jubilee Hills"),
     [search, setSearch] = useState("Jubilee Hills"),
@@ -219,12 +195,17 @@ export default function App() {
   const [spaces, setSpaces] = useState<Space[]>([]),
     [bookings, setBookings] = useState<Booking[]>([]),
     [events, setEvents] = useState<Event[]>([]),
-    [owner, setOwner] = useState<{ spaces: Space[]; arrivals: Booking[] }>({
+    [owner, setOwner] = useState<{
+      spaces: Space[];
+      arrivals: Booking[];
+      blocks: Block[];
+    }>({
       spaces: [],
       arrivals: [],
+      blocks: [],
     });
   const [saved, setSaved] = useState<string[]>(
-      JSON.parse(localStorage.getItem("parkly-saved") || "[]"),
+      JSON.parse(localStorage.getItem("parkly-saved-" + user.id) || "[]"),
     ),
     [selected, setSelected] = useState<Space | null>(null),
     [modal, setModal] = useState(""),
@@ -263,6 +244,8 @@ export default function App() {
     lat: 17.433,
     lng: 78.407,
     price: 40,
+    daily_rate: 320,
+    monthly_rate: 4800,
     capacity: 1,
     vehicle: "Sedan",
     covered: false,
@@ -276,13 +259,44 @@ export default function App() {
     [scanOpen, setScanOpen] = useState(false),
     [scanError, setScanError] = useState("");
   function navigate(p: string) {
+    if (mode === "host" && p !== "host") return;
+    if (mode === "driver" && p === "host") return;
     setPage(p);
+    history.pushState(
+      {},
+      "",
+      p === "host"
+        ? "/host/dashboard"
+        : "/app/" + (p === "discover" ? "search" : p),
+    );
     setMenu(false);
     setSortOpen(false);
     setError("");
     window.scrollTo({ top: 0, behavior: "auto" });
     requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
   }
+  useEffect(() => {
+    const handleRoute = () => {
+      if (mode === "host") {
+        setPage("host");
+        setHostTab(location.pathname.split("/")[2] || "dashboard");
+      } else
+        setPage(
+          (
+            {
+              "/app/bookings": "bookings",
+              "/app/events": "events",
+              "/app/saved": "saved",
+            } as Record<string, string>
+          )[location.pathname] || "discover",
+        );
+      setModal("");
+      window.scrollTo(0, 0);
+    };
+    handleRoute();
+    window.addEventListener("popstate", handleRoute);
+    return () => window.removeEventListener("popstate", handleRoute);
+  }, [mode]);
   function locateUser() {
     if (!navigator.geolocation) {
       setError("Location is not available in this browser.");
@@ -303,17 +317,7 @@ export default function App() {
   }
   function finishOnboarding() {
     setOnboarding(false);
-  }
-  function moveOnboarding(direction: "next" | "back") {
-    setOnboardingDirection(direction);
-    setOnboardingStep((step) => {
-      const next = step + (direction === "next" ? 1 : -1);
-      if (next >= 3) {
-        finishOnboarding();
-        return step;
-      }
-      return Math.max(0, next);
-    });
+    window.scrollTo(0, 0);
   }
   function openSchedule(field: "start" | "end") {
     const [date, time] = (field === "start" ? start : end).split("T");
@@ -355,9 +359,11 @@ export default function App() {
         api(
           `/spaces?start=${encodeURIComponent(new Date(start).toISOString())}&end=${encodeURIComponent(new Date(end).toISOString())}`,
         ),
-        api("/bookings"),
-        api("/events"),
-        api("/owner"),
+        mode === "driver" ? api("/bookings") : Promise.resolve([]),
+        mode === "driver" ? api("/events") : Promise.resolve([]),
+        mode === "host"
+          ? api("/owner")
+          : Promise.resolve({ spaces: [], arrivals: [], blocks: [] }),
       ]);
       setSpaces(s);
       setBookings(b);
@@ -371,7 +377,10 @@ export default function App() {
   }
   useEffect(() => {
     refresh();
-    const id = new URLSearchParams(location.search).get("invite");
+    const id =
+      mode === "driver"
+        ? new URLSearchParams(location.search).get("invite")
+        : null;
     if (id)
       api("/events/" + encodeURIComponent(id))
         .then((e) => {
@@ -397,13 +406,34 @@ export default function App() {
   }, [error, modal, scheduleField]);
   useEffect(() => {
     document.body.style.overflow =
-      onboarding || modal || scheduleField ? "hidden" : "";
+      onboarding || modal || scheduleField || scanOpen ? "hidden" : "";
+    const blocked = Boolean(onboarding || modal || scheduleField || scanOpen);
+    const background = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        ".account-bar, .nav-shell, main#main, footer",
+      ),
+    );
+    background.forEach((el) => {
+      el.inert = blocked;
+    });
+    const focusTimer = window.setTimeout(() => {
+      if (blocked)
+        document
+          .querySelector<HTMLElement>(
+            "[role=dialog] button:not(:disabled), [role=dialog] input, [role=dialog] select",
+          )
+          ?.focus();
+    }, 0);
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         close();
         setScheduleField(null);
+        setScanOpen(false);
       }
-      if (e.key === "Tab" && modal) {
+      if (
+        e.key === "Tab" &&
+        (modal || onboarding || scheduleField || scanOpen)
+      ) {
         const nodes = Array.from(
           document.querySelectorAll<HTMLElement>(
             "[role=dialog] button:not(:disabled), [role=dialog] a[href], [role=dialog] input, [role=dialog] select, [role=dialog] textarea",
@@ -421,8 +451,15 @@ export default function App() {
       }
     };
     window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
-  }, [modal, onboarding, scheduleField]);
+    return () => {
+      window.removeEventListener("keydown", esc);
+      window.clearTimeout(focusTimer);
+      background.forEach((el) => {
+        el.inert = false;
+      });
+      document.body.style.overflow = "";
+    };
+  }, [modal, onboarding, scheduleField, scanOpen]);
   useEffect(() => {
     if (!scanOpen) return;
     let stream: MediaStream | null = null;
@@ -431,7 +468,9 @@ export default function App() {
     const scan = async () => {
       const Detector = (window as any).BarcodeDetector;
       if (!Detector) {
-        setScanError("QR scanning is not supported here. Use the manual field below.");
+        setScanError(
+          "QR scanning is not supported here. Use the manual field below.",
+        );
         return;
       }
       try {
@@ -470,7 +509,9 @@ export default function App() {
         };
         read();
       } catch {
-        setScanError("Camera access was blocked. Allow camera access or use the manual field below.");
+        setScanError(
+          "Camera access was blocked. Allow camera access or use the manual field below.",
+        );
       }
     };
     scan();
@@ -501,7 +542,7 @@ export default function App() {
       ? saved.filter((s) => s !== id)
       : [...saved, id];
     setSaved(a);
-    localStorage.setItem("parkly-saved", JSON.stringify(a));
+    localStorage.setItem("parkly-saved-" + user.id + "", JSON.stringify(a));
   }
   async function action(fn: () => Promise<void>) {
     setBusy(true);
@@ -670,7 +711,13 @@ export default function App() {
         : 0,
   );
   const center: [number, number] = areaCenters[search] || [17.433, 78.407];
-  const pricing = (price: number) => priceForStay(price, start, end);
+  const pricing = (space: Space) =>
+    space.quote || {
+      total: 0,
+      rate: space.price,
+      unit: "/ hour",
+      label: "quote pending",
+    };
   const field = (label: string, el: React.ReactNode) => (
     <label className="field">
       <span>{label}</span>
@@ -689,16 +736,22 @@ export default function App() {
         }
       >
         <div className="nav glass">
-          <button className="brand" onClick={() => navigate("discover")}>
+          <button
+            className="brand"
+            onClick={() => navigate(mode === "host" ? "host" : "discover")}
+          >
             Park<span className="serif">ly</span>
             <span className="beta">HYD</span>
           </button>
           <nav className={menu ? "open" : ""} aria-label="Main navigation">
-            {[
-              ["discover", "Find parking"],
-              ["events", "Event parking"],
-              ["host", "List your space"],
-            ].map(([p, n]) => (
+            {(mode === "host"
+              ? [["host", "Host dashboard"]]
+              : [
+                  ["discover", "Find parking"],
+                  ["events", "Event parking"],
+                  ["saved", "Saved spaces"],
+                ]
+            ).map(([p, n]) => (
               <button
                 key={p}
                 className={page === p ? "nav-active" : ""}
@@ -709,22 +762,26 @@ export default function App() {
             ))}
           </nav>
           <div className="nav-right">
-            <button
-              className={
-                "icon-btn saved-nav " + (page === "saved" ? "active" : "")
-              }
-              onClick={() => navigate("saved")}
-              aria-label="Saved spaces"
-            >
-              <Bookmark size={18} />
-            </button>
-            <button
-              className="btn dark small"
-              onClick={() => navigate("bookings")}
-            >
-              <Ticket size={16} />
-              <span>My bookings</span>
-            </button>
+            {mode === "driver" && (
+              <>
+                <button
+                  className={
+                    "icon-btn saved-nav " + (page === "saved" ? "active" : "")
+                  }
+                  onClick={() => navigate("saved")}
+                  aria-label="Saved spaces"
+                >
+                  <Bookmark size={18} />
+                </button>
+                <button
+                  className="btn dark small"
+                  onClick={() => navigate("bookings")}
+                >
+                  <Ticket size={16} />
+                  <span>My bookings</span>
+                </button>
+              </>
+            )}
             <button
               className="icon-btn menu"
               aria-label="Toggle navigation"
@@ -869,6 +926,12 @@ export default function App() {
                   </div>
                   <div className="sort">
                     <button
+                      className="text-btn"
+                      onClick={() => setModal("preferences")}
+                    >
+                      Requirements
+                    </button>
+                    <button
                       className="sort-trigger"
                       type="button"
                       aria-haspopup="listbox"
@@ -925,6 +988,11 @@ export default function App() {
                         setQuery("");
                         setSearch("");
                         setVehicle("Bike");
+                        setRequirements({
+                          covered: false,
+                          ev: false,
+                          budget: false,
+                        });
                       }}
                     >
                       Show all spaces
@@ -997,15 +1065,17 @@ export default function App() {
                         <div className="card-bottom">
                           <div>
                             <strong>
-                              {money(pricing(s.price).rate)}
-                              <small>{pricing(s.price).unit}</small>
+                              {money(pricing(s).rate)}
+                              <small>{pricing(s).unit}</small>
                             </strong>
                             <span>
-                              {money(pricing(s.price).total)} for {pricing(s.price).label}
+                              {money(pricing(s).total)} for {pricing(s).label}
                             </span>
                           </div>
                           {!s.available && (
-                            <span className="card-unavailable">Unavailable</span>
+                            <span className="card-unavailable">
+                              Unavailable
+                            </span>
                           )}
                         </div>
                         <p
@@ -1064,7 +1134,7 @@ export default function App() {
                       position={[s.lat, s.lng]}
                       icon={L.divIcon({
                         className: "price-marker",
-                        html: `<span>₹${s.price}</span>`,
+                        html: `<span>₹${pricing(s).rate}</span>`,
                         iconSize: [64, 38],
                         iconAnchor: [32, 38],
                       })}
@@ -1092,7 +1162,9 @@ export default function App() {
                   )}
                 </MapContainer>
                 <button
-                  className={"map-location-button " + (locating ? "locating" : "")}
+                  className={
+                    "map-location-button " + (locating ? "locating" : "")
+                  }
                   type="button"
                   onClick={locateUser}
                   aria-label="Use my location"
@@ -1113,8 +1185,8 @@ export default function App() {
                     </div>
                     <div className="map-space-action">
                       <span>
-                        {money((mapFocus || filtered[0]).price)}
-                        <small>/hr</small>
+                        {money(pricing(mapFocus || filtered[0]).rate)}
+                        <small>{pricing(mapFocus || filtered[0]).unit}</small>
                       </span>
                       <button
                         className="btn dark"
@@ -1222,7 +1294,9 @@ export default function App() {
                   title="Your next stop starts here"
                   text="Reserve a space and your parking pass will appear here."
                   button="Find parking"
-                  onClick={() => navigate("discover")}
+                  onClick={() =>
+                    navigate(mode === "host" ? "host" : "discover")
+                  }
                 />
               )}
             </div>
@@ -1329,18 +1403,9 @@ export default function App() {
                 />
               )}
             </div>
-            <button
-              className="btn outline"
-              onClick={() => {
-                navigate("host");
-              }}
-            >
-              <Ticket size={16} />
-              Open attendant check-in
-            </button>
           </>
         )}
-        {page === "host" && (
+        {page === "host" && mode === "host" && (
           <>
             <section className="page-intro compact">
               <div>
@@ -1352,42 +1417,79 @@ export default function App() {
                 </h1>
                 <p>Turn an available driveway into someone’s easier day.</p>
               </div>
-              <button className="btn dark" onClick={() => setModal("listing")}>
+              <button
+                className="btn dark"
+                onClick={() => {
+                  setEditingSpace(null);
+                  setAiReady(false);
+                  setPreview("");
+                  setModal("listing");
+                }}
+              >
                 <Plus size={18} />
                 List a space
               </button>
             </section>
-            <div className="host-summary glass">
-              <div>
-                <span>Your locations</span>
-                <strong>{owner.spaces.length}</strong>
+            <nav className="host-tabs" aria-label="Host navigation">
+              {[
+                ["dashboard", "Overview"],
+                ["spaces", "My spaces"],
+                ["arrivals", "Arrivals"],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  className={hostTab === id ? "selected" : ""}
+                  onClick={() => {
+                    setHostTab(id);
+                    history.pushState({}, "", "/host/" + id);
+                    window.scrollTo(0, 0);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+            {hostTab === "dashboard" && (
+              <div className="host-summary glass">
+                <div>
+                  <span>Your locations</span>
+                  <strong>{owner.spaces.length}</strong>
+                </div>
+                <div>
+                  <span>Total spaces</span>
+                  <strong>
+                    {owner.spaces.reduce((a, s) => a + s.capacity, 0)}
+                  </strong>
+                </div>
+                <div>
+                  <span>Arriving today</span>
+                  <strong>
+                    {
+                      owner.arrivals.filter(
+                        (b) =>
+                          b.status === "confirmed" &&
+                          new Date(b.start).toDateString() ===
+                            new Date().toDateString(),
+                      ).length
+                    }
+                  </strong>
+                </div>
+                <div>
+                  <span>Checked in</span>
+                  <strong>
+                    {
+                      owner.arrivals.filter(
+                        (b) =>
+                          b.status === "checked-in" &&
+                          new Date(b.start).toDateString() ===
+                            new Date().toDateString(),
+                      ).length
+                    }
+                  </strong>
+                </div>
               </div>
-              <div>
-                <span>Total spaces</span>
-                <strong>
-                  {owner.spaces.reduce((a, s) => a + s.capacity, 0)}
-                </strong>
-              </div>
-              <div>
-                <span>Expected arrivals</span>
-                <strong>
-                  {
-                    owner.arrivals.filter((b) => b.status === "confirmed")
-                      .length
-                  }
-                </strong>
-              </div>
-              <div>
-                <span>Checked in</span>
-                <strong>
-                  {
-                    owner.arrivals.filter((b) => b.status === "checked-in")
-                      .length
-                  }
-                </strong>
-              </div>
-            </div>
-            <div className="host-columns">
+            )}
+            <div className={"host-columns host-view-" + hostTab}>
               <section>
                 <div className="section-head">
                   <h2>Your parking locations</h2>
@@ -1400,7 +1502,50 @@ export default function App() {
                         <h3>{s.name}</h3>
                         <p>
                           {s.area} · {s.capacity} spaces · {money(s.price)}/hr
+                          <br />
+                          {money(s.daily_rate)}/day · {money(s.monthly_rate)}
+                          /month · {s.status?.replaceAll("_", " ")}
                         </p>
+                      </div>
+                      <div className="host-space-actions">
+                        <button
+                          className="text-btn"
+                          onClick={() => {
+                            setListing({
+                              ...s,
+                              covered: !!s.covered,
+                              ev: !!s.ev,
+                            });
+                            setEditingSpace(s.id);
+                            setAiReady(true);
+                            setModal("listing");
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="text-btn"
+                          disabled={busy}
+                          onClick={() =>
+                            action(async () => {
+                              await api(
+                                "/host/spaces/" + s.id,
+                                {
+                                  status:
+                                    s.status === "active"
+                                      ? "paused"
+                                      : "pending_review",
+                                },
+                                "PATCH",
+                              );
+                              await refresh();
+                            })
+                          }
+                        >
+                          {s.status === "active"
+                            ? "Pause"
+                            : "Submit for review"}
+                        </button>
                       </div>
                     </article>
                   ))
@@ -1409,7 +1554,12 @@ export default function App() {
                     title="Your first space is a good start"
                     text="Add the location, access instructions and vehicle limits. Only list spaces you are authorized to offer."
                     button="List your space"
-                    onClick={() => setModal("listing")}
+                    onClick={() => {
+                      setEditingSpace(null);
+                      setAiReady(false);
+                      setPreview("");
+                      setModal("listing");
+                    }}
                   />
                 )}
               </section>
@@ -1434,7 +1584,9 @@ export default function App() {
                       setScanOpen(true);
                     }}
                   >
-                    <span className="scanner-icon"><ScanLine size={23} /></span>
+                    <span className="scanner-icon">
+                      <ScanLine size={23} />
+                    </span>
                     <span>
                       <strong>Scan guest pass</strong>
                       <small>Use your camera to read the QR code</small>
@@ -1465,42 +1617,56 @@ export default function App() {
                 </p>
               </section>
             </div>
-            <div className="section-head">
-              <h2>Guest arrivals</h2>
-            </div>
-            <div className="table-wrap glass">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Vehicle</th>
-                    <th>Location</th>
-                    <th>Arrival</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {owner.arrivals.length ? (
-                    owner.arrivals.map((b) => (
-                      <tr key={b.id}>
-                        <td>{b.plate}</td>
-                        <td>{b.name}</td>
-                        <td>{dateLabel(b.start)}</td>
-                        <td>{b.status}</td>
+            {hostTab === "spaces" && (
+              <Availability
+                spaces={owner.spaces}
+                blocks={owner.blocks || []}
+                refresh={refresh}
+              />
+            )}
+            {hostTab !== "spaces" && (
+              <>
+                <div className="section-head">
+                  <h2>Guest arrivals</h2>
+                </div>
+                <div className="table-wrap glass">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Vehicle</th>
+                        <th>Location</th>
+                        <th>Arrival</th>
+                        <th>Status</th>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4}>No guest arrivals yet.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {owner.arrivals.length ? (
+                        owner.arrivals.map((b) => (
+                          <tr key={b.id}>
+                            <td>{b.plate}</td>
+                            <td>{b.name}</td>
+                            <td>{dateLabel(b.start)}</td>
+                            <td>{b.status}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4}>No guest arrivals yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </>
         )}
       </main>
       <footer>
-        <button className="brand" onClick={() => navigate("discover")}>
+        <button
+          className="brand"
+          onClick={() => navigate(mode === "host" ? "host" : "discover")}
+        >
           Park<span className="serif">ly</span>
         </button>
         <span>A space for your everyday plans.</span>
@@ -1542,7 +1708,12 @@ export default function App() {
               </button>
             </div>
             <div className="scanner-frame">
-              <video ref={scanVideoRef} playsInline muted aria-label="Camera preview" />
+              <video
+                ref={scanVideoRef}
+                playsInline
+                muted
+                aria-label="Camera preview"
+              />
               <span className="scanner-corner corner-tl" />
               <span className="scanner-corner corner-tr" />
               <span className="scanner-corner corner-bl" />
@@ -1552,7 +1723,11 @@ export default function App() {
             <p className="scanner-hint">
               Center the QR code from the guest’s parking pass inside the frame.
             </p>
-            {scanError && <p className="error" role="alert">{scanError}</p>}
+            {scanError && (
+              <p className="error" role="alert">
+                {scanError}
+              </p>
+            )}
             <button
               className="text-btn"
               type="button"
@@ -1572,80 +1747,11 @@ export default function App() {
             aria-modal="true"
             aria-labelledby="onboarding-title"
           >
-            <div className="onboarding-topline">
-              <button
-                className="onboarding-skip"
-                type="button"
-                onClick={finishOnboarding}
-              >
-                Skip intro
-              </button>
-              <span>Parkly / 01</span>
-            </div>
-            <div className="onboarding-progress" aria-label="Onboarding progress">
-              {[0, 1, 2].map((step) => (
-                <span
-                  key={step}
-                  className={step <= onboardingStep ? "active" : ""}
-                />
-              ))}
-            </div>
             <div
               key={onboardingStep}
               className={`onboarding-slide onboarding-slide-${onboardingDirection}`}
               aria-live="polite"
             >
-              {onboardingStep === 0 && (
-                <>
-                  <div className="onboarding-art onboarding-art-hero">
-                    <span className="onboarding-orbit orbit-one" />
-                    <span className="onboarding-orbit orbit-two" />
-                    <span className="onboarding-pin">
-                      <MapPin size={26} />
-                    </span>
-                    <span className="onboarding-route route-one" />
-                    <span className="onboarding-route route-two" />
-                  </div>
-                  <span className="eyebrow">PARKING, WITHOUT THE HUNT</span>
-                  <h1 id="onboarding-title">
-                    Start closer.
-                    <br />
-                    Arrive <em>calmer.</em>
-                  </h1>
-                  <p>
-                    Parkly helps you find a verified space before the drive,
-                    so the last few minutes feel easy.
-                  </p>
-                </>
-              )}
-              {onboardingStep === 1 && (
-                <>
-                  <div className="onboarding-art onboarding-art-flow">
-                    <span className="flow-step flow-search">
-                      <Search size={22} />
-                    </span>
-                    <span className="flow-line" />
-                    <span className="flow-step flow-calendar">
-                      <CalendarDays size={22} />
-                    </span>
-                    <span className="flow-line" />
-                    <span className="flow-step flow-pass">
-                      <Ticket size={22} />
-                    </span>
-                  </div>
-                  <span className="eyebrow">THREE SMALL MOVES</span>
-                  <h1 id="onboarding-title">
-                    Search. Reserve.
-                    <br />
-                    <em>Go.</em>
-                  </h1>
-                  <div className="onboarding-points">
-                    <span><b>01</b> Tell us where you’re headed.</span>
-                    <span><b>02</b> Choose the time that fits.</span>
-                    <span><b>03</b> Arrive with a ready-to-use pass.</span>
-                  </div>
-                </>
-              )}
               {onboardingStep === 2 && (
                 <>
                   <div className="onboarding-art onboarding-art-preferences">
@@ -1654,11 +1760,11 @@ export default function App() {
                   </div>
                   <span className="eyebrow">MAKE PARKING FIT</span>
                   <h1 id="onboarding-title">
-                    A better match,
+                    What do you need
                     <br />
-                    <em>from the start.</em>
+                    <em>today?</em>
                   </h1>
-                  <p>Set your defaults once. We’ll keep the search focused.</p>
+                  <p>Choose your vehicle and parking preferences.</p>
                   <form
                     className="onboarding-form"
                     onSubmit={(event) => {
@@ -1678,6 +1784,19 @@ export default function App() {
                       </select>,
                     )}
                     <div className="onboarding-checks">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={requirements.budget}
+                          onChange={(e) =>
+                            setRequirements({
+                              ...requirements,
+                              budget: e.target.checked,
+                            })
+                          }
+                        />
+                        Under ₹40/hr
+                      </label>
                       <label>
                         <input
                           type="checkbox"
@@ -1710,28 +1829,6 @@ export default function App() {
                     </button>
                   </form>
                 </>
-              )}
-            </div>
-            <div className="onboarding-actions">
-              {onboardingStep > 0 ? (
-                <button
-                  className="onboarding-back"
-                  type="button"
-                  onClick={() => moveOnboarding("back")}
-                >
-                  Back
-                </button>
-              ) : (
-                <span />
-              )}
-              {onboardingStep < 2 && (
-                <button
-                  className="btn dark"
-                  type="button"
-                  onClick={() => moveOnboarding("next")}
-                >
-                  Continue <ArrowRight size={17} />
-                </button>
               )}
             </div>
           </section>
@@ -1845,7 +1942,7 @@ export default function App() {
                       ? "List a space"
                       : modal === "preferences"
                         ? "Parking preferences"
-                      : "Parking dialog"
+                        : "Parking dialog"
             }
             className={"modal glass " + (modal === "pass" ? "pass-modal" : "")}
           >
@@ -1965,8 +2062,8 @@ export default function App() {
                     {dateLabel(start)} → {dateLabel(end)}
                   </span>
                   <strong>
-                    {money(pricing(selected.price).total)}{" "}
-                    <small>total · {pricing(selected.price).label}</small>
+                    {money(pricing(selected).total)}{" "}
+                    <small>total · {pricing(selected).label}</small>
                   </strong>
                 </div>
                 <form
@@ -2310,10 +2407,16 @@ export default function App() {
                   onSubmit={(e) => {
                     e.preventDefault();
                     action(async () => {
-                      await api("/spaces", listing);
+                      await api(
+                        editingSpace
+                          ? "/host/spaces/" + editingSpace
+                          : "/spaces",
+                        listing,
+                        editingSpace ? "PATCH" : "POST",
+                      );
                       await refresh();
                       close();
-                      setToast("Your space is listed");
+                      setToast("Your space has been submitted for review");
                     });
                   }}
                 >
@@ -2351,10 +2454,9 @@ export default function App() {
                   )}
                   <p className="fine">
                     This is the only AI step in Parkly. MobileViT runs locally
-                    on the phone using CPU/WASM and suggests environmental
-                    cues while you confirm dimensions, access and vehicle fit.
-                    The photo stays on the device and is not saved to the
-                    listing.
+                    on the phone using CPU/WASM and suggests environmental cues
+                    while you confirm dimensions, access and vehicle fit. The
+                    photo stays on the device and is not saved to the listing.
                   </p>
                   {field(
                     "Listing name",
@@ -2464,6 +2566,44 @@ export default function App() {
                       />,
                     )}
                   </div>
+                  <div className="form-row">
+                    {field(
+                      "Daily rate (₹)",
+                      <input
+                        required
+                        type="number"
+                        min={listing.price}
+                        max={listing.price * 24}
+                        value={listing.daily_rate}
+                        onChange={(e) =>
+                          setListing({
+                            ...listing,
+                            daily_rate: +e.target.value,
+                          })
+                        }
+                      />,
+                    )}
+                    {field(
+                      "Monthly rate (₹)",
+                      <input
+                        required
+                        type="number"
+                        min={listing.daily_rate}
+                        max="1000000"
+                        value={listing.monthly_rate}
+                        onChange={(e) =>
+                          setListing({
+                            ...listing,
+                            monthly_rate: +e.target.value,
+                          })
+                        }
+                      />,
+                    )}
+                  </div>
+                  <p className="fine">
+                    Daily pricing applies through 10 days. Longer stays use your
+                    monthly rate, charged in full 30-day periods.
+                  </p>
                   <div className="checks">
                     <label>
                       <input
@@ -2502,11 +2642,11 @@ export default function App() {
                     this space and have verified vehicle access and capacity.
                   </label>
                   <p className="fine">
-                    Preview listings are available at all times. Availability
-                    schedules and payouts are not enabled.
+                    Approved listings are continuously available until you pause
+                    them. Payments and payouts are not enabled.
                   </p>
                   <button className="btn dark wide" disabled={busy || !aiReady}>
-                    Publish demo listing
+                    Submit for review
                     <ArrowRight size={17} />
                   </button>
                 </form>
