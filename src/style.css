@@ -2944,27 +2944,6 @@ h3 {
     inset 0 1px 0 #fff;
 }
 
-.parking-card .card-content {
-  padding: 22px 20px;
-  min-height: 280px;
-}
-
-.parking-card .address {
-  margin-bottom: 20px;
-}
-
-.parking-card .features {
-  margin-bottom: 22px;
-}
-
-.parking-card .card-bottom {
-  padding-top: 20px;
-}
-
-.parking-card .availability {
-  margin-top: 16px;
-}
-
 .parking-card:hover,
 .parking-card.highlighted {
   box-shadow:
@@ -3079,7 +3058,7 @@ h3 {
   }
 
   .parking-card .card-content {
-    padding-right: 20px;
+    padding-right: 5px;
   }
 
   .parking-card .card-bottom .btn {
@@ -4272,7 +4251,7 @@ table th {
     margin-left: auto;
   }
   .parking-card .card-content {
-    padding: 22px 18px;
+    padding: 12px;
   }
 }
 
@@ -4302,3 +4281,15 @@ table th {
     transition: none;
   }
 }
+
+/* Readable parking-card typography without extra card padding. */
+.parking-card .card-title { font-size: 27px; line-height: 1.3; }
+.parking-card .card-top .eyebrow { font-size: 13px; }
+.parking-card .address,
+.parking-card .features,
+.parking-card .distance-label { font-size: 16px; line-height: 1.5; }
+.parking-card .card-bottom strong { font-size: 32px; }
+.parking-card .card-bottom strong small,
+.parking-card .card-bottom > div > span,
+.parking-card .availability,
+.parking-card .card-unavailable { font-size: 15px; line-height: 1.5; }
