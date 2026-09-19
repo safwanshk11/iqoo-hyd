@@ -129,7 +129,7 @@ export async function createApp(store, options = {}) {
     }),
   );
   app.get("/api/health", (_req, res) =>
-    res.json({ ok: true, version: "0.4.0", auth: true }),
+    res.json({ ok: true, version: "0.4.1", auth: true }),
   );
   const attempts = new Map();
   const throttle = (req, _res, next) => {
