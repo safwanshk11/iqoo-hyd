@@ -2944,6 +2944,27 @@ h3 {
     inset 0 1px 0 #fff;
 }
 
+.parking-card .card-content {
+  padding: 22px 20px;
+  min-height: 280px;
+}
+
+.parking-card .address {
+  margin-bottom: 20px;
+}
+
+.parking-card .features {
+  margin-bottom: 22px;
+}
+
+.parking-card .card-bottom {
+  padding-top: 20px;
+}
+
+.parking-card .availability {
+  margin-top: 16px;
+}
+
 .parking-card:hover,
 .parking-card.highlighted {
   box-shadow:
@@ -3058,7 +3079,7 @@ h3 {
   }
 
   .parking-card .card-content {
-    padding-right: 5px;
+    padding-right: 20px;
   }
 
   .parking-card .card-bottom .btn {
@@ -4251,7 +4272,7 @@ table th {
     margin-left: auto;
   }
   .parking-card .card-content {
-    padding: 12px;
+    padding: 22px 18px;
   }
 }
 
