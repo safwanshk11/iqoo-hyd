@@ -960,18 +960,23 @@ export default function App({
                   <div className="empty glass">
                     <ParkingCircle size={36} />
                     <h3>
-                      {nearby
+                      {page === "saved"
+                        ? "No saved spaces yet"
+                        : nearby
                         ? "No matching spaces nearby"
                         : "No spaces match just yet"}
                     </h3>
                     <p>
-                      {nearby
+                      {page === "saved"
+                        ? "Bookmark a parking space to find it here. Browse all spaces to get started."
+                        : nearby
                         ? "No matching parking within 10 km. Try another destination or adjust your requirements."
                         : "Try a nearby neighbourhood or different requirements."}
                     </p>
                     <button
                       className="btn dark"
                       onClick={() => {
+                        if (page === "saved") navigate("discover");
                         setNearby(false);
                         setQuery("");
                         setSearch("");
