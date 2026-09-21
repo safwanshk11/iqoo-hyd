@@ -4,7 +4,9 @@ export function Admin() {
   const [listings, setListings] = useState<any[]>([]),
     [users, setUsers] = useState<any[]>([]),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [deleting, setDeleting] = useState<any>(null),
+    [confirmation, setConfirmation] = useState("");
   async function load() {
     try {
       const [l, u] = await Promise.all([
@@ -31,6 +33,18 @@ export function Admin() {
     } finally {
       setBusy(false);
     }
+  }
+  async function deleteAccount() {
+    setBusy(true);
+    setError("");
+    try {
+      await api("/admin/users/" + deleting.id, { email: confirmation }, "DELETE");
+      setDeleting(null);
+      setConfirmation("");
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally { setBusy(false); }
   }
   return (
     <main>
@@ -97,6 +111,27 @@ export function Admin() {
           >
             {u.status === "active" ? "Suspend" : "Reactivate"}
           </button>
+          <button className="btn outline small" disabled={busy || !u.can_delete}
+            title={!u.can_delete ? "Administrator accounts are protected" : undefined}
+            onClick={() => { setDeleting(u); setConfirmation(""); setError(""); }}>
+            Delete account
+          </button>
+          {deleting?.id === u.id && (
+            <section aria-label="Confirm account deletion" className="admin-delete-confirm">
+              <h3>Delete {u.name}'s account?</h3>
+              <p>This permanently removes their login and profile, signs them out, and pauses their listings. Booking history is retained. Accounts with upcoming bookings or events cannot be deleted.</p>
+              <label>Type {u.email} to confirm
+                <input type="email" value={confirmation} disabled={busy}
+                  onChange={(e) => setConfirmation(e.target.value)} autoComplete="off" />
+              </label>
+              <div className="admin-actions">
+                <button className="btn outline small" disabled={busy} onClick={() => setDeleting(null)}>Cancel</button>
+                <button className="btn dark small" disabled={busy || confirmation !== u.email} onClick={deleteAccount}>
+                  {busy ? "Deleting…" : "Permanently delete account"}
+                </button>
+              </div>
+            </section>
+          )}
         </article>
       ))}
     </main>

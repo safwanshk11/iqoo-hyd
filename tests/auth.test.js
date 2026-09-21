@@ -349,6 +349,19 @@ test("accounts enforce roles, ownership, review, pricing, expiry and logout", as
     200,
   );
   assert.equal((await request("/me", { cookie: other.cookie })).status, 401);
+  const disposable = await register("delete@example.com");
+  const deletePath = "/admin/users/" + disposable.data.user.id;
+  assert.equal((await request(deletePath, { cookie: disposable.cookie, method: "DELETE", body: { email: "delete@example.com" } })).status, 403);
+  assert.equal((await request("/admin/users/" + driver.data.user.id, { cookie: driver.cookie, method: "DELETE", body: { email: "driver@example.com" } })).status, 403);
+  assert.equal((await request(deletePath, { cookie: driver.cookie, method: "DELETE", body: { email: "wrong@example.com" } })).status, 400);
+  const endField = store.pool ? "end_time" : "end";
+  const startField = store.pool ? "start_time" : "start";
+  await db.query(`INSERT INTO events(id,owner,name,venue,${startField},${endField},quantity) VALUES($1,$2,$3,$4,$5,$6,$7)`, ["delete-guard", disposable.data.user.id, "Future event", "Test", new Date(Date.now()+86400000).toISOString(), new Date(Date.now()+172800000).toISOString(), 1]);
+  assert.equal((await request(deletePath, { cookie: driver.cookie, method: "DELETE", body: { email: "delete@example.com" } })).status, 409);
+  await db.query("DELETE FROM events WHERE id=$1", ["delete-guard"]);
+  assert.equal((await request(deletePath, { cookie: driver.cookie, method: "DELETE", body: { email: "delete@example.com" } })).status, 200);
+  assert.equal((await request("/me", { cookie: disposable.cookie })).status, 401);
+  assert.equal((await db.query("SELECT id FROM users WHERE id=$1", [disposable.data.user.id])).length, 0);
   await db.query(
     "UPDATE sessions SET expires_at='2000-01-01' WHERE user_id=$1",
     [host.data.user.id],

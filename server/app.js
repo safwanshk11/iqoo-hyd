@@ -471,7 +471,7 @@ export async function createApp(store, options = {}) {
     route(async (_req, res) =>
       res.json(
         await db.query(
-          "SELECT id,name,email,status FROM users ORDER BY created_at DESC",
+          "SELECT id,name,email,status, CASE WHEN EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id=users.id AND r.role='admin') THEN 0 ELSE 1 END AS can_delete FROM users ORDER BY created_at DESC",
         ),
       ),
     ),
@@ -503,6 +503,33 @@ export async function createApp(store, options = {}) {
       );
       if (!updated.length) throw fail("User not found.", 404);
       await db.query("DELETE FROM sessions WHERE user_id=$1", [req.params.id]);
+      res.json({ ok: true });
+    }),
+  );
+  app.delete(
+    "/api/admin/users/:id",
+    need("admin"),
+    route(async (req, res) => {
+      await inventoryTransaction(store, async (tx) => {
+        const id = req.params.id;
+        if (id === req.user.id) throw fail("You cannot delete your own account.", 403);
+        if ((await tx.query("SELECT role FROM user_roles WHERE user_id=$1 AND role='admin'", [id])).length)
+          throw fail("Administrator accounts must be managed from the server.", 403);
+        const user = (await tx.query("SELECT email FROM users WHERE id=$1", [id]))[0];
+        if (!user) throw fail("User not found.", 404);
+        if (req.body.email !== user.email) throw fail("Enter the account email to confirm deletion.");
+        const now = new Date().toISOString();
+        const reservations = await tx.query(
+          `SELECT b.id FROM bookings b LEFT JOIN spaces s ON s.id=b.space_id WHERE (b.session=$1 OR s.owner=$1) AND b.status<>'cancelled' AND b.${endColumn}>$2`, [id, now]);
+        const events = await tx.query(`SELECT id FROM events WHERE owner=$1 AND ${endColumn}>$2`, [id, now]);
+        const allocations = await tx.query(`SELECT a.id FROM allocations a JOIN spaces s ON s.id=a.space_id WHERE s.owner=$1 AND a.${endColumn}>$2`, [id, now]);
+        if (reservations.length || events.length || allocations.length)
+          throw fail("Resolve upcoming bookings and events before deleting this account.", 409);
+        await tx.query("UPDATE spaces SET status='paused' WHERE owner=$1", [id]);
+        await tx.query("DELETE FROM sessions WHERE user_id=$1", [id]);
+        await tx.query("DELETE FROM user_roles WHERE user_id=$1", [id]);
+        await tx.query("DELETE FROM users WHERE id=$1", [id]);
+      });
       res.json({ ok: true });
     }),
   );
